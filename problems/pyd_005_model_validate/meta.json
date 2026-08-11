@@ -1,0 +1,6 @@
+{
+  "id": "pyd_005_model_validate",
+  "category": "parsing",
+  "difficulty": "easy",
+  "v1_trap": ".parse_obj() / .parse_raw() instead of .model_validate() / .model_validate_json()"
+}

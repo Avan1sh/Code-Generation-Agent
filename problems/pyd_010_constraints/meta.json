@@ -1,0 +1,6 @@
+{
+  "id": "pyd_010_constraints",
+  "category": "constraints",
+  "difficulty": "medium",
+  "v1_trap": "regex= instead of pattern=; conint/constr shorthands removed in v2"
+}

@@ -1,0 +1,25 @@
+# Core agent
+langgraph>=0.2.60
+langchain-core>=0.3.29
+pydantic>=2.9
+
+# Static analysis (ast is stdlib)
+pyflakes>=3.2
+
+# Sandboxed execution target
+pytest>=8.3
+
+# Eval analysis
+pandas>=2.2
+
+# Config
+python-dotenv>=1.0
+
+# LLM providers -- install the one matching LLM_PROVIDER. Both are listed
+# because the eval harness supports either; neither is imported unless
+# selected (see agent/llm.py for the lazy-import rationale).
+langchain-groq>=0.2
+langchain-google-genai>=2.0
+
+# Tracing (optional at runtime -- LangSmith activates via env vars only)
+langsmith>=0.2

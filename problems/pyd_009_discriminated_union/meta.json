@@ -1,0 +1,6 @@
+{
+  "id": "pyd_009_discriminated_union",
+  "category": "discriminated_union",
+  "difficulty": "hard",
+  "v1_trap": "plain Union without Field(discriminator=...) / Annotated"
+}

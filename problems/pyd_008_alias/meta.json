@@ -1,0 +1,6 @@
+{
+  "id": "pyd_008_alias",
+  "category": "alias",
+  "difficulty": "medium",
+  "v1_trap": "allow_population_by_field_name in class Config instead of populate_by_name in ConfigDict"
+}

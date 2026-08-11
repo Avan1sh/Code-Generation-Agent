@@ -1,0 +1,6 @@
+{
+  "id": "pyd_002_model_dump",
+  "category": "serialization",
+  "difficulty": "easy",
+  "v1_trap": ".dict() / .json() instead of .model_dump() / .model_dump_json()"
+}

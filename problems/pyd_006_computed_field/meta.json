@@ -1,0 +1,6 @@
+{
+  "id": "pyd_006_computed_field",
+  "category": "computed_field",
+  "difficulty": "medium",
+  "v1_trap": "plain @property (excluded from output) instead of @computed_field"
+}

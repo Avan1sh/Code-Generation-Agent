@@ -1,0 +1,6 @@
+{
+  "id": "pyd_012_before_validator",
+  "category": "before_validator",
+  "difficulty": "hard",
+  "v1_trap": "@validator(pre=True) instead of @field_validator(mode=\"before\")"
+}

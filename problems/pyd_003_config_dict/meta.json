@@ -1,0 +1,6 @@
+{
+  "id": "pyd_003_config_dict",
+  "category": "config",
+  "difficulty": "medium",
+  "v1_trap": "class Config: instead of model_config = ConfigDict(...)"
+}

@@ -1,0 +1,6 @@
+{
+  "id": "pyd_011_type_adapter",
+  "category": "type_adapter",
+  "difficulty": "hard",
+  "v1_trap": "parse_obj_as() removed in v2; replaced by TypeAdapter"
+}

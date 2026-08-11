@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+
+# Raw eval runs are kept -- they are the evidence behind any reported number.
+# Only ignore stray scratch output.
+results/*.tmp

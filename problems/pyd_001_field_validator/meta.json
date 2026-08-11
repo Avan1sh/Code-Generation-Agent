@@ -1,0 +1,6 @@
+{
+  "id": "pyd_001_field_validator",
+  "category": "field_validator",
+  "difficulty": "easy",
+  "v1_trap": "@validator instead of @field_validator"
+}

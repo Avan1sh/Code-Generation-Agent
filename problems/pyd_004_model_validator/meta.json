@@ -1,0 +1,6 @@
+{
+  "id": "pyd_004_model_validator",
+  "category": "model_validator",
+  "difficulty": "medium",
+  "v1_trap": "@root_validator instead of @model_validator(mode=\"after\")"
+}

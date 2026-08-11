@@ -1,0 +1,6 @@
+{
+  "id": "pyd_007_field_serializer",
+  "category": "field_serializer",
+  "difficulty": "hard",
+  "v1_trap": "json_encoders in class Config instead of @field_serializer"
+}
