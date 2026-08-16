@@ -25,6 +25,12 @@ floor and the ceiling — which is the only condition under which the central
 question (*does directed self-correction beat undirected resampling at equal
 compute?*) has an answerable form.
 
+**That reasoning cuts both ways, and the first run proved it.** `llama-3.1-8b-instant`
+turned out to be *too* weak: its oracle ceiling was 1/12, so the eval had no
+discriminating power at all (see [Results](#results), Run 1). The model was moved
+up to `llama-3.3-70b-versatile` — still not frontier — on that evidence. Both runs
+are kept. The failed calibration is part of the record, not something to delete.
+
 ### Why Pydantic v2 as the target domain
 
 Pydantic's v1→v2 migration is an unusually clean failure mode to study. Enormous
@@ -249,10 +255,84 @@ budget.
 
 ## Results
 
-*Not yet run.* This section will be populated from an actual
-`eval/run_eval.py` + `eval/analyze.py` run — headline counts, paired
-fixed/broken breakdown, per-category results, attempt distribution, and LLM-call
-cost per method. No numbers appear here before that run exists.
+Two runs, both committed in `results/` as raw JSONL. Reproduce either with
+`python eval/analyze.py results/<file>`.
+
+### Run 2 — `llama-3.3-70b-versatile`, max_attempts=3, n=12
+
+`results/run_20260816T212101Z.jsonl`
+
+| Method | Solved | LLM calls |
+|--------|--------|-----------|
+| `single_shot` (pass@1 floor) | **3/12** | 12 |
+| `best_of_n` (pass@3 oracle ceiling) | **4/12** | 36 |
+| `self_correct` (agent) | **3/12** | 54 |
+
+**The self-correction loop produced no net improvement: +0 problems out of 12.**
+It fixed one problem the baseline failed (`pyd_005_model_validate`) and broke one
+the baseline solved (`pyd_012_before_validator`), for 4.5× the API cost of the
+baseline.
+
+**The most informative number is the ceiling, not the agent's score.** The oracle
+ceiling sits just **1 problem above the floor** (4/12 vs 3/12), and only 5 of 36
+individual samples passed. If the model's failures were *stochastic*, drawing
+three samples at temperature 0.8 would have recovered many more. It recovered
+one. That means the failures are **systematic knowledge gaps, not sampling
+variance** — this model tier does not know the v2 APIs for the 8 unsolved
+problems, and it fails them the same way every time.
+
+Neither intervention can fix that. Resampling re-draws from a distribution whose
+mass is on the wrong answer; reflection names the correct API, and the model
+still does not produce it. This is the honest explanation for +0, and it is a
+statement about *where these methods stop working*, not evidence that
+self-correction never helps.
+
+Observed failure modes:
+
+- **Non-monotonic correction.** On `pyd_012`, attempt 2 passed the static check
+  and failed only on test semantics; attempt 3 then *regressed* to v1 syntax
+  (`@field.validator(..., pre=True)`, `class Config:`). The loop can move the
+  model backwards, and the agent currently returns the **last** attempt rather
+  than the **best** one — a design flaw, recorded here rather than quietly fixed
+  before reporting.
+- **Where the loop does work.** All 3 of the agent's solves came on attempt 2,
+  never attempt 3. Reflection reliably repairs *syntactic* v1→v2 errors on the
+  first correction, and reliably fails to repair *semantic* ones thereafter.
+- Terminal states for the 9 unsolved: 5 `failed_static`, 4 `failed_tests`.
+
+### Run 1 — `llama-3.1-8b-instant`, max_attempts=3, n=12
+
+`results/run_20260811T123858Z.jsonl`
+
+| Method | Solved | LLM calls |
+|--------|--------|-----------|
+| `single_shot` | **1/12** | 12 |
+| `best_of_n` (oracle) | **1/12** | 36 |
+| `self_correct` | **0/12** | 60 |
+
+**This run is reported because it is a real finding, not because it is
+flattering: the 8B tier is below the floor at which this eval can measure
+anything.** With the oracle ceiling itself at 1/12, no method could have scored
+meaningfully higher, so the 0/12-vs-1/12 gap is a one-problem difference that
+carries no signal. An eval whose ceiling is pinned near zero has no discriminating
+power, and reporting only the headline would have invited the false reading
+"self-correction makes things worse."
+
+The model choice was then changed to a larger — but still non-frontier — model on
+that basis. Keeping this run visible is the point: it is the evidence for why the
+model was changed.
+
+### Caveats that limit these numbers
+
+- **n = 12.** One problem is 8.3 points. Every single-problem difference above,
+  including the +0 and both the fix and the break, is within noise.
+- **Temperature 0 is not deterministic.** `single_shot` and the agent's attempt 1
+  use an identical prompt and temperature, but provider-side batching means they
+  can still diverge — as they did on `pyd_012`. The "same first attempt"
+  property is approximate, not exact.
+- **Single run per configuration.** No seed variance, no repeated trials. These
+  are point estimates.
+- Windows sandbox: `posix_resource_limits_active: false` in both runs.
 
 ---
 
