@@ -4,9 +4,10 @@ A LangGraph agent that generates Pydantic v2 code, detects its own failures, and
 retries with a diagnosis — evaluated against two baselines under a fixed compute
 budget.
 
-**The Results section below is empty on purpose.** No numbers are written here
-until `eval/run_eval.py` has actually been run and `eval/analyze.py` has produced
-them. See [Reporting rules](#reporting-rules).
+**Headline result: the correction loop produced no net improvement over the
+baseline** (3/12 vs 3/12) on the run measured, and the reason is diagnosable —
+see [Results](#results). Every number here comes from a committed run file; none
+is estimated. See [Reporting rules](#reporting-rules).
 
 ---
 
@@ -41,7 +42,9 @@ silently ignored. That gives a genuine, reproducible, root-causable error class 
 rather than the diffuse "sometimes the model is just wrong" failures of a generic
 benchmark.
 
-The eval set probes twelve specific traps:
+The eval set probes 30 specific v1 habits that break in v2 — 7 easy, 12 medium,
+11 hard, 139 assertions total. Each problem ships a hand-written `reference.py`
+proving it is solvable (see [The eval set validates itself](#the-eval-set-validates-itself)).
 
 | # | Problem | v1 trap being probed |
 |---|---------|----------------------|
@@ -57,6 +60,24 @@ The eval set probes twelve specific traps:
 | 010 | `constraints` | `regex=` instead of `pattern=`; `conint`/`constr` |
 | 011 | `type_adapter` | `parse_obj_as()`, removed in v2 |
 | 012 | `before_validator` | `@validator(pre=True)` |
+| 013 | `optional_default` | v1 made `Optional[X]` implicitly default to `None` |
+| 014 | `validation_info` | validator `values` dict to `ValidationInfo.data` |
+| 015 | `root_model` | `__root__` field to `RootModel` base class |
+| 016 | `copy` | `.copy(update=...)` to `.model_copy(update=...)` |
+| 017 | `json_schema` | `.schema()` to `.model_json_schema()` |
+| 018 | `construct` | `.construct()` to `.model_construct()` |
+| 019 | `sequence_length` | `min_items`/`max_items` to `min_length`/`max_length` |
+| 020 | `validate_default` | `@validator(always=True)` to `Field(validate_default=True)` |
+| 021 | `self_reference` | `update_forward_refs()` to `model_rebuild()` |
+| 022 | `literal_const` | `Field(const=True)`, removed in v2, to `Literal` |
+| 023 | `enum_values` | `use_enum_values` via `class Config` |
+| 024 | `serialization_alias` | v1 had one alias; v2 splits validation/serialization |
+| 025 | `default_factory` | mutable default shared across instances |
+| 026 | `exclude_none` | `.dict(exclude_none=True)` |
+| 027 | `strict` | v1 coerced `"5"` to `5`; v2 strictness is opt-in |
+| 028 | `nested_update` | `.copy(update=...)` on nested models |
+| 029 | `model_validator_before` | `@root_validator(pre=True)` |
+| 030 | `alias_choices` | v1 allowed one alias per field; v2 needs `AliasChoices` |
 
 ---
 
@@ -258,6 +279,12 @@ budget.
 Two runs, both committed in `results/` as raw JSONL. Reproduce either with
 `python eval/analyze.py results/<file>`.
 
+> **Both runs below were measured on the original 12-problem set.** The eval
+> set has since been expanded to 30 problems / 139 assertions to address the
+> resolution problem described in the caveats. **The 30-problem set has not
+> been run**, and no number here reflects it. The expansion was deliberately
+> made *after* reporting, so it cannot have been shaped by these results.
+
 ### Run 2 — `llama-3.3-70b-versatile`, max_attempts=3, n=12
 
 `results/run_20260816T212101Z.jsonl`
@@ -377,8 +404,10 @@ model was changed.
 
 ### Caveats that limit these numbers
 
-- **n = 12.** One problem is 8.3 points. Every single-problem difference above,
-  including the +0 and both the fix and the break, is within noise.
+- **n = 12 for every number reported here.** One problem is 8.3 points, so every
+  single-problem difference above — the +0, the fix, and the break alike — is
+  within noise. This is the single largest weakness of these results, and is why
+  the problem set was subsequently expanded to 30.
 - **Temperature 0 is not deterministic.** `single_shot` and the agent's attempt 1
   use an identical prompt and temperature, but provider-side batching means they
   can still diverge — as they did on `pyd_012`. The "same first attempt"
