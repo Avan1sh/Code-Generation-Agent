@@ -21,3 +21,9 @@ def test_dump_uses_camel_case():
 def test_populate_by_name_enabled():
     # Without this v2 config key, construction by python field name fails.
     assert ApiUser.model_config.get("populate_by_name") is True
+
+
+def test_does_not_use_v1_class_config():
+    # v2 honours a v1 `class Config` for backwards compatibility, so the
+    # assertions above pass either way. The surviving attribute is the tell.
+    assert not hasattr(ApiUser, "Config"), "use model_config = ConfigDict(...), not class Config"

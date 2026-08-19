@@ -287,14 +287,67 @@ still does not produce it. This is the honest explanation for +0, and it is a
 statement about *where these methods stop working*, not evidence that
 self-correction never helps.
 
+#### Test-level resolution (same run, no additional API spend)
+
+`python eval/partial_credit.py results/run_20260816T212101Z.jsonl` re-executes the
+stored solutions locally and counts individual assertions. At n=12 a binary
+outcome can only express differences of 8.3 points; the 64 assertions underneath
+were already paid for and give a finer read.
+
+| Method | Assertions passed |
+|--------|-------------------|
+| `single_shot` | **18/64** (28.1%) |
+| `best_of_n` | **27/64** (42.2%) |
+| `self_correct` | **30/64** (46.9%) |
+
+**This is the one place the loop shows a measurable effect: +12 assertions over
+the baseline, while scoring +0 problems.** The correction step moves solutions
+substantially closer to correct without crossing the threshold — it takes
+`pyd_007` from 0/5 to 4/5 and `pyd_008` from 0/5 to 3/5, and both still count as
+failures.
+
+Read this as a *descriptive* result and nothing stronger. Assertions within a
+problem are correlated — one wrong API call fails several at once — so 64
+assertions are not 64 independent samples, and none of this licenses a
+significance claim. It is also the metric most flattering to the agent, which is
+reason for more scepticism, not less.
+
+#### A methodology bug this surfaced, and its resolution
+
+The test-level pass revealed that `pyd_003`'s stored solution passed every
+assertion while the pipeline recorded it as `failed_static` — the static gate and
+the canonical tests disagreed about the same code.
+
+Cause: the code used `class Config:`, which **Pydantic v2 still honours for
+backwards compatibility**. It populates `model_config` exactly as `ConfigDict`
+would, so a test asserting on `model_config` passes for v1-style and v2-style code
+alike. The test named `test_config_is_v2_style` did not, in fact, test for v2
+style.
+
+The static gate was correct and the test was too weak. Both `pyd_003` and
+`pyd_008` now additionally assert `not hasattr(Model, "Config")`, which is what
+actually distinguishes the two. After the fix the two signals agree
+(`self_correct` tests-only 3/12 = reported 3/12).
+
+This fix changes no headline number — `pyd_003` was already recorded as a failure
+for every method — so it corrects the measurement without retroactively reshaping
+a reported result. Worth stating explicitly: had it changed the headline, the
+honest move would have been to re-run and report both.
+
 Observed failure modes:
 
 - **Non-monotonic correction.** On `pyd_012`, attempt 2 passed the static check
   and failed only on test semantics; attempt 3 then *regressed* to v1 syntax
   (`@field.validator(..., pre=True)`, `class Config:`). The loop can move the
-  model backwards, and the agent currently returns the **last** attempt rather
-  than the **best** one — a design flaw, recorded here rather than quietly fixed
-  before reporting.
+  model backwards, and the agent returns the **last** attempt rather than the
+  **best** one — recorded here rather than quietly fixed before reporting.
+
+  Checked against the data before proposing a fix: **no unsolved problem ever had
+  an attempt that passed its tests** (a passing attempt terminates the graph
+  immediately, so it is always the one returned). Best-attempt selection would
+  therefore improve the quality of the returned artifact but could **not** recover
+  a single pass. Worth doing on its merits; not worth claiming as a score
+  improvement.
 - **Where the loop does work.** All 3 of the agent's solves came on attempt 2,
   never attempt 3. Reflection reliably repairs *syntactic* v1→v2 errors on the
   first correction, and reliably fails to repair *semantic* ones thereafter.

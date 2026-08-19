@@ -26,7 +26,13 @@ def test_strips_whitespace():
 
 
 def test_config_is_v2_style():
-    # model_config is a dict on v2 models; a v1 `class Config` would leave
-    # model_config empty and none of the behaviour above would apply.
     assert Settings.model_config.get("frozen") is True
     assert Settings.model_config.get("extra") == "forbid"
+
+
+def test_does_not_use_v1_class_config():
+    # Pydantic v2 still HONOURS a v1 `class Config` for backwards compatibility:
+    # it populates model_config and every behavioural test above passes either
+    # way. So asserting on model_config alone does not distinguish v1 from v2
+    # style -- the surviving `Config` attribute is what does.
+    assert not hasattr(Settings, "Config"), "use model_config = ConfigDict(...), not class Config"
