@@ -14,8 +14,30 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
+from agent.usage import record
+
 DEFAULT_GROQ_MODEL = "llama-3.1-8b-instant"
 DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+
+
+class _TrackedLLM:
+    """Proxies a chat model and records token usage on every invoke().
+
+    Wrapping here rather than in each node means a new node cannot silently
+    escape cost accounting -- every LLM call in the project goes through
+    get_llm/get_cached_llm.
+    """
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def invoke(self, *args, **kwargs):
+        response = self._inner.invoke(*args, **kwargs)
+        record(response)
+        return response
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
 
 
 def get_llm(temperature: float = 0.0, model: str | None = None):
@@ -31,19 +53,23 @@ def get_llm(temperature: float = 0.0, model: str | None = None):
     if provider == "groq":
         from langchain_groq import ChatGroq
 
-        return ChatGroq(
-            model=model or os.environ.get("LLM_MODEL", DEFAULT_GROQ_MODEL),
-            temperature=temperature,
-            max_retries=2,
+        return _TrackedLLM(
+            ChatGroq(
+                model=model or os.environ.get("LLM_MODEL", DEFAULT_GROQ_MODEL),
+                temperature=temperature,
+                max_retries=2,
+            )
         )
 
     if provider in ("gemini", "google"):
         from langchain_google_genai import ChatGoogleGenerativeAI
 
-        return ChatGoogleGenerativeAI(
-            model=model or os.environ.get("LLM_MODEL", DEFAULT_GEMINI_MODEL),
-            temperature=temperature,
-            max_retries=2,
+        return _TrackedLLM(
+            ChatGoogleGenerativeAI(
+                model=model or os.environ.get("LLM_MODEL", DEFAULT_GEMINI_MODEL),
+                temperature=temperature,
+                max_retries=2,
+            )
         )
 
     raise ValueError(

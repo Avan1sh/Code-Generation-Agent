@@ -147,11 +147,39 @@ def main() -> int:
         print(f"  {category:<24} {'  '.join(parts)}")
 
     if "llm_calls" in df.columns:
-        print("\n--- cost: total LLM calls ---")
+        print("\n--- cost ---")
+        has_usage = "usage" in df.columns and df["usage"].notna().any()
+        if has_usage:
+            print(f"  {'method':<14}{'calls':>7}{'in_tok':>10}{'out_tok':>10}{'total':>10}{'tok/solve':>11}")
+        else:
+            print(f"  {'method':<14}{'calls':>7}")
+
+        incomplete = 0
         for method in ("single_shot", "best_of_n", "self_correct"):
             sub = df[(df["method"] == method) & df["llm_calls"].notna()]
-            if not sub.empty:
-                print(f"  {method:<14} {int(sub['llm_calls'].sum())} calls over {len(sub)} problems")
+            if sub.empty:
+                continue
+            calls = int(sub["llm_calls"].sum())
+            if not has_usage:
+                print(f"  {method:<14}{calls:>7}")
+                continue
+
+            usages = [u for u in sub["usage"] if isinstance(u, dict)]
+            tin = sum(u.get("input_tokens", 0) for u in usages)
+            tout = sum(u.get("output_tokens", 0) for u in usages)
+            incomplete += sum(1 for u in usages if not u.get("is_complete", True))
+            solved = int(sub["passed"].sum())
+            # Tokens per SOLVED problem is the number that actually compares
+            # methods: a method can look cheap in total while being expensive
+            # per unit of work delivered.
+            per = f"{(tin + tout) // solved:,}" if solved else "n/a"
+            print(f"  {method:<14}{calls:>7}{tin:>10,}{tout:>10,}{tin + tout:>10,}{per:>11}")
+
+        if has_usage and incomplete:
+            print(f"\n  !! {incomplete} row(s) contained calls with no usage metadata --")
+            print("     the token figures above are a LOWER BOUND, not a total.")
+        elif not has_usage:
+            print("  (no token data: this run predates usage instrumentation)")
 
     print("\nNote: n is small. Treat single-problem differences as noise, not signal.")
     return 0

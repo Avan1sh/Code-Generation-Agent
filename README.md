@@ -212,7 +212,13 @@ These are enforced by [analyze.py](eval/analyze.py), not just by intent:
 - **It refuses to print** a summary when the results file is missing or empty,
   rather than emitting an empty table that could be mistaken for a measurement.
 - **Cost is reported alongside quality**, since `self_correct` spends more calls
-  than `single_shot` by construction.
+  than `single_shot` by construction. Cost is measured in **actual input/output
+  tokens**, not just call counts: a reflection call carries the failing code plus
+  a pytest traceback, so it is far more expensive than a first-attempt
+  generation, and "54 calls" hides that. The headline cost figure is **tokens per
+  solved problem** — a method can look cheap in total while being expensive per
+  unit of work delivered. If any call returns no usage metadata, the totals are
+  labelled a lower bound rather than reported as if complete.
 
 ---
 
@@ -415,6 +421,9 @@ model was changed.
 - **Single run per configuration.** No seed variance, no repeated trials. These
   are point estimates.
 - Windows sandbox: `posix_resource_limits_active: false` in both runs.
+- **Neither run has token data.** Both predate the usage instrumentation, so
+  only call counts are available for them; `analyze.py` says so explicitly
+  rather than printing zeros. The next run will carry real token costs.
 
 ---
 

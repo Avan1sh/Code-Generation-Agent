@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from agent.graph import run_agent  # noqa: E402
 from agent.sandbox import SandboxHealthError, verify_sandbox_health  # noqa: E402
 from agent.state import Problem  # noqa: E402
+from agent.usage import track_usage  # noqa: E402
 from baselines.best_of_n import run_best_of_n  # noqa: E402
 from baselines.single_shot import run_single_shot  # noqa: E402
 from problems import load_problems  # noqa: E402
@@ -158,26 +159,30 @@ def main() -> int:
                 }
                 start = time.monotonic()
 
-                try:
-                    if method == "single_shot":
-                        r = run_single_shot(problem, test_code)
-                        record.update(passed=r.passed, llm_calls=r.llm_calls, code=r.code, attempts_used=1)
-                    elif method == "best_of_n":
-                        r = run_best_of_n(problem, test_code, n=args.max_attempts)
-                        record.update(
-                            passed=r.passed,
-                            llm_calls=r.llm_calls,
-                            code=r.code,
-                            samples_passed=r.samples_passed,
-                            attempts_used=r.llm_calls,
-                        )
-                    else:
-                        record.update(_run_self_correct(problem, args.max_attempts))
-                except Exception:
-                    # Recorded, not skipped -- a dropped row would silently
-                    # shrink the denominator and inflate every rate.
-                    record.update(passed=False, error=traceback.format_exc(limit=5), llm_calls=None)
+                # Token accounting is scoped per (problem, method) so cost can
+                # be attributed, not just totalled. See agent/usage.py.
+                with track_usage() as usage:
+                    try:
+                        if method == "single_shot":
+                            r = run_single_shot(problem, test_code)
+                            record.update(passed=r.passed, llm_calls=r.llm_calls, code=r.code, attempts_used=1)
+                        elif method == "best_of_n":
+                            r = run_best_of_n(problem, test_code, n=args.max_attempts)
+                            record.update(
+                                passed=r.passed,
+                                llm_calls=r.llm_calls,
+                                code=r.code,
+                                samples_passed=r.samples_passed,
+                                attempts_used=r.llm_calls,
+                            )
+                        else:
+                            record.update(_run_self_correct(problem, args.max_attempts))
+                    except Exception:
+                        # Recorded, not skipped -- a dropped row would silently
+                        # shrink the denominator and inflate every rate.
+                        record.update(passed=False, error=traceback.format_exc(limit=5), llm_calls=None)
 
+                record["usage"] = usage.as_dict()
                 record["duration_sec"] = round(time.monotonic() - start, 2)
                 handle.write(json.dumps(record) + "\n")
                 handle.flush()
