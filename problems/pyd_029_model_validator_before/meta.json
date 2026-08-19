@@ -1,0 +1,6 @@
+{
+  "id": "pyd_029_model_validator_before",
+  "category": "model_validator_before",
+  "difficulty": "hard",
+  "v1_trap": "root_validator(pre=True) replaced by model_validator(mode='before')"
+}

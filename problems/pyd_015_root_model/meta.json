@@ -1,0 +1,6 @@
+{
+  "id": "pyd_015_root_model",
+  "category": "root_model",
+  "difficulty": "hard",
+  "v1_trap": "v1 used a __root__ field; v2 requires a dedicated root-model base class"
+}

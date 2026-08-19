@@ -1,0 +1,6 @@
+{
+  "id": "pyd_014_validation_info",
+  "category": "validation_info",
+  "difficulty": "hard",
+  "v1_trap": "v1 validators took a `values` dict; v2 passes a ValidationInfo whose .data holds it"
+}

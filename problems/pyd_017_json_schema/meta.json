@@ -1,0 +1,6 @@
+{
+  "id": "pyd_017_json_schema",
+  "category": "json_schema",
+  "difficulty": "easy",
+  "v1_trap": ".schema() instead of .model_json_schema()"
+}

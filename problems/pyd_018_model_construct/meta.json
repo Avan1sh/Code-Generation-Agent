@@ -1,0 +1,6 @@
+{
+  "id": "pyd_018_model_construct",
+  "category": "construct",
+  "difficulty": "easy",
+  "v1_trap": ".construct() instead of .model_construct()"
+}

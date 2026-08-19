@@ -1,0 +1,6 @@
+{
+  "id": "pyd_016_model_copy",
+  "category": "copy",
+  "difficulty": "easy",
+  "v1_trap": ".copy(update=...) instead of .model_copy(update=...)"
+}

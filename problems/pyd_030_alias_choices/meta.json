@@ -1,0 +1,6 @@
+{
+  "id": "pyd_030_alias_choices",
+  "category": "alias_choices",
+  "difficulty": "hard",
+  "v1_trap": "v1 allowed only one alias per field; v2 needs AliasChoices for several"
+}

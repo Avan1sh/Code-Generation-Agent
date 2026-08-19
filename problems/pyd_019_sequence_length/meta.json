@@ -1,0 +1,6 @@
+{
+  "id": "pyd_019_sequence_length",
+  "category": "sequence_length",
+  "difficulty": "medium",
+  "v1_trap": "min_items/max_items renamed to min_length/max_length in v2"
+}

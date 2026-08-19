@@ -1,0 +1,6 @@
+{
+  "id": "pyd_024_serialization_alias",
+  "category": "serialization_alias",
+  "difficulty": "hard",
+  "v1_trap": "v1 had one alias; v2 separates validation_alias from serialization_alias"
+}

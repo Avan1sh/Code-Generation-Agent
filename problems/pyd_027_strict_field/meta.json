@@ -1,0 +1,6 @@
+{
+  "id": "pyd_027_strict_field",
+  "category": "strict",
+  "difficulty": "medium",
+  "v1_trap": "v1 coerced str to int freely; v2 strict mode must be requested explicitly"
+}

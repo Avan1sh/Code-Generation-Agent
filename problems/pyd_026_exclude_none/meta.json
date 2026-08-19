@@ -1,0 +1,6 @@
+{
+  "id": "pyd_026_exclude_none",
+  "category": "exclude_none",
+  "difficulty": "medium",
+  "v1_trap": ".dict(exclude_none=True) instead of .model_dump(exclude_none=True)"
+}

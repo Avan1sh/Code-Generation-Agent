@@ -1,0 +1,6 @@
+{
+  "id": "pyd_028_nested_update",
+  "category": "nested_update",
+  "difficulty": "medium",
+  "v1_trap": ".copy(update=...) on nested models instead of .model_copy"
+}

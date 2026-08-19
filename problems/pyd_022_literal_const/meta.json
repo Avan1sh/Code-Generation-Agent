@@ -1,0 +1,6 @@
+{
+  "id": "pyd_022_literal_const",
+  "category": "literal_const",
+  "difficulty": "medium",
+  "v1_trap": "Field(const=True) removed in v2; use Literal"
+}

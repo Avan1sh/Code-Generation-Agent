@@ -1,0 +1,6 @@
+{
+  "id": "pyd_020_validate_default",
+  "category": "validate_default",
+  "difficulty": "hard",
+  "v1_trap": "validator(always=True) replaced by Field(validate_default=True)"
+}

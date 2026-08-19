@@ -1,0 +1,6 @@
+{
+  "id": "pyd_025_default_factory",
+  "category": "default_factory",
+  "difficulty": "easy",
+  "v1_trap": "mutable default shared across instances if default_factory is not used"
+}

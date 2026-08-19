@@ -1,0 +1,6 @@
+{
+  "id": "pyd_023_enum_values",
+  "category": "enum_values",
+  "difficulty": "medium",
+  "v1_trap": "use_enum_values must be set via ConfigDict in v2, not class Config"
+}

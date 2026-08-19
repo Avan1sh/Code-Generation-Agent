@@ -1,0 +1,6 @@
+{
+  "id": "pyd_013_optional_default",
+  "category": "optional_default",
+  "difficulty": "medium",
+  "v1_trap": "v1 made Optional[X] implicitly default to None; v2 keeps it required"
+}

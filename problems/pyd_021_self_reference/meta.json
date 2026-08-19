@@ -1,0 +1,6 @@
+{
+  "id": "pyd_021_self_reference",
+  "category": "self_reference",
+  "difficulty": "hard",
+  "v1_trap": "update_forward_refs() replaced by model_rebuild() in v2"
+}
