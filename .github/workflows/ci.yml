@@ -28,7 +28,12 @@ jobs:
           cache: pip
 
       - name: Install
-        run: pip install -r requirements.txt
+        # Both files: serve/ is part of the project and its tests import FastAPI.
+        # Installing only the core requirements made the server tests fail on the
+        # runner while passing locally, where FastAPI happened to be present.
+        run: |
+          pip install -r requirements.txt
+          pip install -r serve/requirements.txt
 
       - name: Confirm the POSIX sandbox path is reachable here
         run: |

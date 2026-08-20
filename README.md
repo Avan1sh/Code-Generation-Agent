@@ -5,10 +5,10 @@
 **[Results and methodology](https://avan1sh.github.io/Code-Generation-Agent/)** · **[Try the static gate](https://avan1sh.github.io/Code-Generation-Agent/try.html)** · **[Run the agent live](https://selfcorrect-agent-demo.onrender.com)**
 
 A LangGraph agent that generates Pydantic v2 code, detects its own failures, and
-retries with a diagnosis — evaluated against two baselines under a fixed compute
+retries with a diagnosis, evaluated against two baselines under a fixed compute
 budget.
 
-**Headline result: the correction loop scored 30/30 against a 26/30 baseline —
+**Headline result: the correction loop scored 30/30 against a 26/30 baseline,
 but only +1 of that gap is attributable to the correction step.** The rest is
 temperature-0 sampling variance and one rate-limited baseline call. The
 decomposition, and the measured ~3-problem noise floor that makes the +1
@@ -22,13 +22,13 @@ committed run file; none is estimated. See [Reporting rules](#reporting-rules).
 ### Why a mid-tier model, not a frontier model
 
 The LLM is a mid-tier open-weights model (currently `openai/gpt-oss-120b` on
-Groq) — chosen deliberately, not to save money.
+Groq), chosen deliberately, not to save money.
 
 A frontier model would solve most of this eval set zero-shot. The single-shot
 baseline would sit near ceiling, the correction loop would have almost nothing to
 correct, and any measured "improvement" would be indistinguishable from run-to-run
 noise. Deliberately using a weaker model leaves measurable headroom between the
-floor and the ceiling — which is the only condition under which the central
+floor and the ceiling, which is the only condition under which the central
 question (*does directed self-correction beat undirected resampling at equal
 compute?*) has an answerable form.
 
@@ -36,7 +36,7 @@ compute?*) has an answerable form.
 directions.** `llama-3.1-8b-instant` was *too weak*: its oracle ceiling was 1/12,
 so the eval had no discriminating power at all (Run 1). `openai/gpt-oss-120b` is
 *too strong*: it solves 26/30 zero-shot, leaving only 4 problems of headroom
-(Run 3). Only `llama-3.3-70b-versatile` landed in a measurable band — and Groq
+(Run 3). Only `llama-3.3-70b-versatile` landed in a measurable band, and Groq
 retired it mid-project, so that band is no longer reachable.
 
 Every run is kept, including the unflattering ones. The mis-calibrations are the
@@ -53,12 +53,12 @@ Pydantic's v1→v2 migration is an unusually clean failure mode to study. Enormo
 amounts of v1 code exist in training data, the v1 API is still the model's
 statistical default, and v1 constructs fail in v2 in a *diagnosable* way:
 `@validator` is not registered, `.dict()` does not exist, `class Config` is
-silently ignored. That gives a genuine, reproducible, root-causable error class —
+silently ignored. That gives a genuine, reproducible, root-causable error class,
 rather than the diffuse "sometimes the model is just wrong" failures of a generic
 benchmark.
 
-The eval set probes 40 specific v1 habits and v2 semantics — 7 easy, 12 medium,
-21 hard, 185 assertions total. Problems 031–040 were added after Run 3 showed the
+The eval set probes 40 specific v1 habits and v2 semantics, 7 easy, 12 medium,
+21 hard, 185 assertions total. Problems 031-040 were added after Run 3 showed the
 set was ceiling-limited; see [Run 4](#run-4--hard-problem-calibration-check-openaigpt-oss-120b-n11)
 for how well that worked. Each problem ships a hand-written `reference.py`
 proving it is solvable (see [The eval set validates itself](#the-eval-set-validates-itself)).
@@ -117,8 +117,8 @@ test_gen ──> generate ──> static_check ──pass──> execute ──p
 | `execute` | [executor.py](agent/nodes/executor.py) | Runs the tests in a sandboxed subprocess |
 | `reflect` | [reflector.py](agent/nodes/reflector.py) | One LLM call: root cause + fix direction, **not** code |
 
-State is a Pydantic v2 model ([state.py](agent/state.py)) — not a dict with string
-keys — so every node transition is runtime-validated.
+State is a Pydantic v2 model ([state.py](agent/state.py)), not a dict with string
+keys, so every node transition is runtime-validated.
 
 `test_gen` runs **once**, before the loop. Regenerating tests per attempt would let
 the success criterion drift under a failing solution.
@@ -133,7 +133,7 @@ The "no unbounded loops" claim rests on three things, in order of importance:
 
 1. **Node-level guards.** `static_check_node` and `executor_node` each compare
    `attempt_number >= max_attempts` themselves and write a terminal status. The
-   conditional edges only *read* that status — routers never decide termination.
+   conditional edges only *read* that status, routers never decide termination.
 2. **A monotonic counter.** `attempt_number` is incremented by `generate` on every
    pass and never decremented anywhere, so (1) is guaranteed to fire within
    `max_attempts` generations regardless of model output.
@@ -142,8 +142,8 @@ The "no unbounded loops" claim rests on three things, in order of importance:
    `GraphRecursionError` (a crash) rather than producing a clean terminal state.
 
 This is tested, not asserted: [tests/test_graph_termination.py](tests/test_graph_termination.py)
-runs the graph with a stub LLM that **always** emits broken code — the worst case,
-a model that never self-corrects — and checks the bound holds at
+runs the graph with a stub LLM that **always** emits broken code, the worst case,
+a model that never self-corrects, and checks the bound holds at
 `max_attempts` 1, 2, and 3, on both the static-failure and test-failure paths.
 
 ### Sandboxing
@@ -159,7 +159,7 @@ temporary directory and run under `pytest` in a subprocess
 this project's life, because development happened on Windows where
 `resource.setrlimit` does not exist and
 [tests/test_sandbox_posix.py](tests/test_sandbox_posix.py) was permanently
-skipped. CI now runs on `ubuntu-latest`, where those tests execute for real —
+skipped. CI now runs on `ubuntu-latest`, where those tests execute for real,
 proving the ceilings both *permit* valid code and *stop* a runaway allocation
 without falling back on the wall clock. The workflow **fails the build if those
 tests skip**, since a skipped test still exits 0 and a green run would otherwise
@@ -169,7 +169,7 @@ The hosted demo is the second confirmation: it reports
 `posix_resource_limits_active: true` and a measured startup probe of **17.1s**
 against its 45s budget.
 
-See [Limitations](#limitations) — the Windows gap is still real for local runs and
+See [Limitations](#limitations), the Windows gap is still real for local runs and
 is recorded in every run's metadata.
 
 **The sandbox proves itself healthy before the eval spends anything.**
@@ -180,7 +180,7 @@ This guards a failure mode that would otherwise be invisible and badly
 misattributed: `RLIMIT_AS` caps *virtual address space*, which CPython plus
 `pydantic-core` reserve far more of than they make resident. A ceiling that looks
 reasonable ("a solution shouldn't need 256 MB") can be too small for the
-interpreter itself — in which case **every** problem fails, the eval reports 0
+interpreter itself, in which case **every** problem fails, the eval reports 0
 passes across all three methods, and it reads as a model failure rather than a
 misconfigured sandbox. The check turns that into a loud, self-describing error
 before any budget is spent. `DEFAULT_MEMORY_MB` is deliberately generous for the
@@ -205,7 +205,7 @@ prompt was just better."
 
 **`best_of_n` is an oracle, and is labelled as one everywhere.** Reporting pass@N
 requires knowing which sample passed, which at inference time means already having
-the tests. It is included because it is *compute-matched* — N is set to
+the tests. It is included because it is *compute-matched*, N is set to
 `max_attempts`, so both spend a comparable generation budget. That makes the real
 question answerable: at equal cost, does **directed** correction (reflect on the
 actual error) beat **undirected** resampling (roll again)? If `self_correct` lands
@@ -221,13 +221,13 @@ API key required:
 
 - every problem has a hand-written `reference.py` that **passes its own tests** in
   the same sandbox the agent uses;
-- every reference solution **passes the static check** — proving the v1 detector
+- every reference solution **passes the static check**, proving the v1 detector
   has no false positives that would reject correct answers;
 - no `prompt.md` **leaks a v2 API name** (`field_validator`, `ConfigDict`, …),
   which would turn the eval into an instruction-following test instead of a test
   of v2 knowledge.
 
-`reference.py` is never shown to the model — only `prompt.md` is.
+`reference.py` is never shown to the model, only `prompt.md` is.
 
 ### Reporting rules
 
@@ -238,7 +238,7 @@ These are enforced by [analyze.py](eval/analyze.py), not just by intent:
 - **Paired per-problem deltas**, not just aggregates. A net +0 can hide the loop
   fixing one problem and breaking another; `analyze.py` prints `fixed by the loop`
   and `broken by the loop` separately.
-- **Errored runs count as failures**, never dropped — a dropped row silently
+- **Errored runs count as failures**, never dropped, a dropped row silently
   shrinks the denominator and inflates every rate.
 - **It refuses to print** a summary when the results file is missing or empty,
   rather than emitting an empty table that could be mistaken for a measurement.
@@ -247,7 +247,7 @@ These are enforced by [analyze.py](eval/analyze.py), not just by intent:
   tokens**, not just call counts: a reflection call carries the failing code plus
   a pytest traceback, so it is far more expensive than a first-attempt
   generation, and "54 calls" hides that. The headline cost figure is **tokens per
-  solved problem** — a method can look cheap in total while being expensive per
+  solved problem**, a method can look cheap in total while being expensive per
   unit of work delivered. If any call returns no usage metadata, the totals are
   labelled a lower bound rather than reported as if complete.
 
@@ -278,7 +278,7 @@ LANGCHAIN_PROJECT=selfcorrect-agent
 
 ## Running
 
-Tests that need **no API key** — the sandbox, the static checker, the termination
+Tests that need **no API key**, the sandbox, the static checker, the termination
 proof, the sandbox health guard, and the eval-set validation:
 
 ```bash
@@ -316,7 +316,7 @@ budget.
 Runs are committed in `results/` as raw JSONL. Reproduce with
 `python eval/analyze.py results/<file>`.
 
-### Run 3 — `openai/gpt-oss-120b`, max_attempts=3, n=30 (current)
+### Run 3, `openai/gpt-oss-120b`, max_attempts=3, n=30 (current)
 
 `results/run_20260820T054643Z.jsonl`
 
@@ -332,9 +332,9 @@ came from is the whole result, and it does not survive the obvious question
 
 | Problem `single_shot` missed | How `self_correct` got it | Attributable to the loop? |
 |------------------------------|---------------------------|---------------------------|
-| `pyd_011_type_adapter` | attempt 1 — baseline had hit a **429 rate limit** | **No** — infrastructure |
-| `pyd_014_validation_info` | attempt 1, no correction run | **No** — sampling variance |
-| `pyd_015_root_model` | attempt 1, no correction run | **No** — sampling variance |
+| `pyd_011_type_adapter` | attempt 1, baseline had hit a **429 rate limit** | **No**, infrastructure |
+| `pyd_014_validation_info` | attempt 1, no correction run | **No**, sampling variance |
+| `pyd_015_root_model` | attempt 1, no correction run | **No**, sampling variance |
 | `pyd_020_validate_default` | **attempt 2, after reflection** | **Yes** |
 
 **The correction loop's genuine contribution is +1 problem out of 30, not +4.**
@@ -345,7 +345,7 @@ repaired by the loop.
 #### The confound this quantifies
 
 `single_shot` and the agent's attempt 1 use the same prompt, same model, and
-temperature 0 — yet they diverged on **3 of 30 problems**. Provider-side
+temperature 0, yet they diverged on **3 of 30 problems**. Provider-side
 batching makes temperature 0 non-deterministic, and this run puts a number on
 it: roughly a 10% per-problem disagreement rate between calls that should be
 identical.
@@ -359,7 +359,7 @@ helps, only that it did not hurt (0 problems broken).
 #### The eval set is now ceiling-limited
 
 At 26/30 the baseline sits near ceiling, leaving 4 problems of headroom. This is
-the *opposite* failure of Run 1, where the ceiling was pinned at the floor — but
+the *opposite* failure of Run 1, where the ceiling was pinned at the floor, but
 it damages measurement the same way: with almost nothing left to fix, the
 correction loop has almost nothing to demonstrate. `best_of_n` passed 80 of 90
 individual samples, confirming the model finds these problems easy rather than
@@ -371,15 +371,15 @@ headroom needs harder problems, not more of the same difficulty.
 #### Cost
 
 `self_correct` costs essentially the same as `single_shot` per solved problem
-(812 vs 805 tokens) because 29/30 needed no correction — the loop only spends
+(812 vs 805 tokens) because 29/30 needed no correction, the loop only spends
 when it fails. `best_of_n` costs **2.9×** per solve, since it always draws all
 three samples whether or not the first worked. That is the clearest cost result
 here: **undirected resampling is the expensive strategy, and it scored lower
 than the agent.**
 
-### Run 4 — hard-problem calibration check, `openai/gpt-oss-120b`, n=11
+### Run 4, hard-problem calibration check, `openai/gpt-oss-120b`, n=11
 
-`results/run_20260820T061750Z.jsonl` (problems 030–040 only, via `--only`)
+`results/run_20260820T061750Z.jsonl` (problems 030-040 only, via `--only`)
 
 Ten new problems were written specifically to defeat this model, after Run 3
 showed the eval was ceiling-limited. **The attempt largely failed, and that is
@@ -391,7 +391,7 @@ the result:**
 | `best_of_n` (oracle) | **10/11** (90.9%) | 3,180 |
 | `self_correct` | **9/11** (81.8%) | 2,819 |
 
-Baseline moved from 86.7% (Run 3) to 81.8% — **barely harder**. The model
+Baseline moved from 86.7% (Run 3) to 81.8%, **barely harder**. The model
 comfortably handles wrap validators, `model_post_init` with private attributes,
 `model_fields_set`/`exclude_unset`, plain `Generic[T]` models, `alias_generator`,
 wrap serializers, and `extra="allow"` with `__pydantic_extra__`. The loop again
@@ -399,7 +399,7 @@ netted +0.
 
 **This is the third calibration miss**: too weak (Run 1), too strong (Run 3),
 still too easy (Run 4). Recorded rather than quietly re-tuned, because the
-pattern is the finding — writing problems this model fails in this domain is
+pattern is the finding, writing problems this model fails in this domain is
 genuinely difficult.
 
 #### The two that did work, and why
@@ -411,14 +411,14 @@ principle worth reusing:
 > **The obvious answer looks correct, is silently accepted, and silently does
 > nothing.**
 
-- `pyd_032_serialize_as_any` — the model wrote
+- `pyd_032_serialize_as_any`, the model wrote
   `model_config = ConfigDict(serialize_as_any=True)`. `serialize_as_any` is *not*
   a `ConfigDict` key, but `ConfigDict` is a `TypedDict`, so the key is accepted
   at runtime, stored in `model_config`, and has **no effect**. No error, no
   warning; the subclass field is just missing from the output. The working
   answers are `SerializeAsAny[Animal]` on the field or the runtime
   `model_dump(serialize_as_any=True)` flag.
-- `pyd_037_custom_error` — the model reached for `PydanticErrorMixin` from
+- `pyd_037_custom_error`, the model reached for `PydanticErrorMixin` from
   `pydantic.errors`, a real but internal API, rather than `PydanticCustomError`
   from `pydantic_core`. Plausible, importable, wrong.
 
@@ -429,20 +429,20 @@ and silently misbehaves are the ones with discriminating power.
 #### Honest status of the eval set
 
 **Pydantic v2 is close to exhausted as a discriminating domain at this model
-tier.** Forty problems now yield roughly 4–6 failures, which is not enough
+tier.** Forty problems now yield roughly 4-6 failures, which is not enough
 headroom to measure a correction loop against. Restoring measurement needs one
 of:
 
 1. more problems built on the silent-failure principle above (the only approach
    shown to work here, at roughly a 2-in-11 hit rate);
-2. a weaker model — but Groq has retired both Llama tiers, so the previously
+2. a weaker model, but Groq has retired both Llama tiers, so the previously
    measurable band is no longer reachable;
 3. a different, harder domain.
 
 None of these is a result about self-correction. Stating that plainly is more
 useful than continuing to tune until a favourable number appears.
 
-### Runs 1 and 2 — Llama models, n=12 (historical, NOT reproducible)
+### Runs 1 and 2, Llama models, n=12 (historical, NOT reproducible)
 
 `results/run_20260811T123858Z.jsonl` (`llama-3.1-8b-instant`) and
 `results/run_20260816T212101Z.jsonl` (`llama-3.3-70b-versatile`).
@@ -460,7 +460,7 @@ three methods must run in one process against one model snapshot.
 
 Run 1 is reported despite being unflattering: with the oracle ceiling itself at
 1/12, no method could have scored meaningfully higher, so it measured nothing.
-Run 2's finding — the loop nets +0, fixing one problem and breaking another —
+Run 2's finding, the loop nets +0, fixing one problem and breaking another,
 stands as recorded.
 
 Two `FAILED_*_model_404.jsonl` files are also kept. Those are the 30-problem runs
@@ -481,7 +481,7 @@ they are why `verify_llm_available()` now runs before any budget is spent.
   for an honest denominator but understates `single_shot` by one problem. On the
   model's own merits the baseline is arguably 27/30.
 - **Model changed mid-project under duress**, not by choice. Results are not
-  comparable across runs 1–2 and run 3.
+  comparable across runs 1-2 and run 3.
 - Windows sandbox: `posix_resource_limits_active: false` in every run.
 - **Runs 1 and 2 have no token data**; they predate the usage instrumentation and
   `analyze.py` says so rather than printing zeros.
@@ -490,13 +490,13 @@ they are why `verify_llm_available()` now runs before any budget is spent.
 
 - **The Windows sandbox is weaker than the POSIX one.** `resource.setrlimit` does
   not exist on Windows, so on Windows there is *no* memory ceiling, *no* CPU
-  ceiling, and *no* process-count ceiling — only a wall-clock timeout. Generated
+  ceiling, and *no* process-count ceiling, only a wall-clock timeout. Generated
   code can still open sockets and touch the filesystem on any platform. Each run
   records `posix_resource_limits_active` in its metadata, because results are not
   fully comparable across operating systems. For a stronger guarantee, run under
   WSL/Linux or in a container.
 - **The sandbox does not isolate the network.** It bounds CPU, memory, process
-  count, and wall-clock time — all now verified on Linux — but generated code
+  count, and wall-clock time, all now verified on Linux, but generated code
   could still open a socket. Container isolation is the outer boundary. This is
   the one sandbox guarantee that remains unproven, and it is unproven because it
   does not exist, not because it is untested.
@@ -506,7 +506,7 @@ they are why `verify_llm_available()` now runs before any budget is spent.
   comparable across operating systems.
 - **The sandbox timeout is hardware-dependent.** The 10s default suits a
   developer machine; on constrained shared hosting it is far too short, and a
-  valid solution then reports `timed_out` — which reads as the model writing an
+  valid solution then reports `timed_out`, which reads as the model writing an
   infinite loop. `SANDBOX_TIMEOUT_SEC` makes it configurable and
   `/api/status` reports the measured probe duration so the value can be set from
   data. This was found the hard way on the live demo, where the probe takes
@@ -514,7 +514,7 @@ they are why `verify_llm_available()` now runs before any budget is spent.
 - **n = 12.** Single-problem differences are noise. `analyze.py` says so on every
   report.
 - **The eval set is hand-authored by one person** and probes traps chosen in
-  advance. It measures what it was built to measure — v1-vs-v2 API knowledge — not
+  advance. It measures what it was built to measure, v1-vs-v2 API knowledge, not
   general code generation ability.
 - **`solve.py` results are not benchmark results.** Ad-hoc prompts have no
   canonical tests, so the tests are LLM-written and the model is partly grading
