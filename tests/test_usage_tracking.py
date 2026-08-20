@@ -76,3 +76,73 @@ def test_tracked_llm_records_through_the_factory():
         llm.invoke("hi")
     assert u.calls == 1
     assert u.total_tokens == 10
+
+
+# ---------------------------------------------------------------------------
+# Server endpoint shape
+# ---------------------------------------------------------------------------
+
+
+def test_solve_endpoint_is_not_a_generator():
+    """A stray `yield` in the endpoint silently empties every response.
+
+    FastAPI 0.141+ streams generator endpoints as application/jsonl. A `return
+    JSONResponse(...)` inside a generator yields nothing, so the client gets
+    HTTP 200, correct-looking headers, and a zero-byte body -- with no
+    exception, no crash, and the worker still alive. Nothing in the logs says
+    why. An orphan `yield` left by a line-based edit caused exactly that, and it
+    survived a full test run because no test asserted on the response body.
+    """
+    import inspect
+
+    from serve.app import solve, status
+
+    assert not inspect.isgeneratorfunction(solve)
+    assert not inspect.isgeneratorfunction(status)
+
+
+def test_solve_returns_a_non_empty_json_body():
+    """End-to-end shape check with a stubbed model -- no API key needed.
+
+    Asserts on the body, which is the assertion that was missing when the bug
+    shipped.
+    """
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from agent.nodes import generator as gen_mod
+    from agent.nodes import reflector as ref_mod
+    from agent.nodes import test_generator as tg_mod
+    import serve.app as app_mod
+
+    class _Resp:
+        def __init__(self, content):
+            self.content = content
+            self.usage_metadata = {"input_tokens": 5, "output_tokens": 5}
+
+    class _Stub:
+        payload = "```python\nfrom pydantic import BaseModel\n\n\nclass B(BaseModel):\n    w: int\n```"
+
+        def invoke(self, _messages):
+            return _Resp(self.payload)
+
+    stub = _Stub()
+    originals = {}
+    for mod in (gen_mod, ref_mod, tg_mod):
+        originals[mod] = mod.get_cached_llm
+        mod.get_cached_llm = lambda *a, **k: stub
+    try:
+        with TestClient(app_mod.app) as client:
+            resp = client.post("/api/solve", json={"prompt": "x" * 30})
+    finally:
+        for mod, fn in originals.items():
+            mod.get_cached_llm = fn
+
+    assert resp.status_code == 200
+    assert len(resp.content) > 0, "empty body -- is the endpoint a generator again?"
+    assert resp.headers["content-type"].startswith("application/json")
+    body = json.loads(resp.content)
+    assert "status" in body
+    assert "attempts" in body
+    assert body["tests_are_llm_written"] is True

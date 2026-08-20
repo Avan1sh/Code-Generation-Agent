@@ -281,8 +281,6 @@ def solve(req: SolveRequest, request: Request) -> JSONResponse:
         _run_slot.release()
 
 
-    yield
-
 
 _STATIC = Path(__file__).resolve().parent / "static"
 if _STATIC.is_dir():
