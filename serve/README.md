@@ -11,39 +11,46 @@ image is what retires that caveat.
 
 ---
 
-## Deploy to Hugging Face Spaces
+## Deploy to Render (free, no card)
 
-1. Create a Space at <https://huggingface.co/new-space> — **SDK: Docker**, blank
-   template. Any visibility.
+Hugging Face Spaces is **not** an option on a free account any more: as of July
+2026 both the Gradio and Docker SDKs require a paid plan, and only Static Spaces
+(which have no compute) stay free. Render's free tier still takes Docker, needs
+no payment details, and does not expire.
 
-2. Point it at this repo, or push these files to the Space's own git remote. The
-   Space needs `serve/`, `agent/`, and `problems/`, plus a `Dockerfile` at the
-   repo root. The simplest route is a root `Dockerfile` that just delegates:
+1. Push this repo to GitHub (already done).
 
-   ```dockerfile
-   # Dockerfile at repo root
-   FROM python:3.13-slim
-   # ... or simply copy serve/Dockerfile to the root, unchanged.
-   ```
+2. At <https://dashboard.render.com> choose **New → Blueprint**, point it at the
+   repo, and Render reads [`render.yaml`](../render.yaml). It will prompt for the
+   one value deliberately kept out of that file:
 
-   `serve/Dockerfile` already builds from the repo root, so copying it to
-   `./Dockerfile` works as-is.
+   | Name | Value |
+   |------|-------|
+   | `GROQ_API_KEY` | your Groq key |
 
-3. In the Space: **Settings → Variables and secrets**, add
+   `render.yaml` sets `sync: false` for the key precisely so it is never
+   committed to a public repo. The other variables (`LLM_PROVIDER`,
+   `LLM_MODEL`, `DAILY_CALL_BUDGET`) are safe in the file and set automatically.
 
-   | Kind | Name | Value |
-   |------|------|-------|
-   | Secret | `GROQ_API_KEY` | your Groq key |
-   | Variable | `LLM_PROVIDER` | `groq` |
-   | Variable | `LLM_MODEL` | `openai/gpt-oss-120b` |
-   | Variable | `DAILY_CALL_BUDGET` | `400` (optional) |
+   Without a key the service still starts and runs in bring-your-own-key mode.
 
-   A **Secret**, not a Variable, for the key — Variables are visible in the Space
-   UI. If you set no key at all the demo still works: it runs in
-   bring-your-own-key mode only.
+3. First build takes a few minutes. The health check is `/api/status`.
 
-4. The Space builds and serves on port 7860, which the Dockerfile already
-   exposes. First build takes a few minutes.
+### The free-tier tradeoff, stated plainly
+
+Free services **sleep after 15 minutes idle**, and the next request pays a
+30&ndash;60 second cold start. The UI handles this rather than hiding it: the status
+strip shows "waking the server" and retries for about 70 seconds, and the run
+button warns that a sleeping server adds a minute.
+
+For a portfolio link that is usually acceptable. If it is not, a paid instance
+removes the sleep; nothing in the code changes.
+
+## Other hosts
+
+The image is a plain Dockerfile listening on `$PORT` (falling back to 7860), so
+anything that runs a container works: Koyeb, Fly.io, Google Cloud Run, or your
+own box. Only Render is scripted here.
 
 ## Run locally
 

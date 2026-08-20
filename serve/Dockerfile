@@ -21,4 +21,6 @@ COPY serve/ /app/serve/
 USER appuser
 EXPOSE 7860
 
-CMD ["uvicorn", "serve.app:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+# Shell form so ${PORT} expands: Render assigns the port at runtime, while
+# local runs and other hosts fall back to 7860.
+CMD uvicorn serve.app:app --host 0.0.0.0 --port ${PORT:-7860} --workers 1

@@ -194,7 +194,11 @@ footer{padding:0 0 60px;color:var(--muted);font-size:.83rem}
   function esc(t){ var d=document.createElement("div"); d.textContent = t==null?"":t; return d.innerHTML; }
   function chip(text, cls){ return '<span class="chip'+(cls?" "+cls:"")+'">'+esc(text)+"</span>"; }
 
-  function loadStatus(){
+  // Free-tier hosting sleeps after idle, so the first request of the day pays a
+  // 30-60s cold start. Retry visibly rather than showing a dead page.
+  function loadStatus(attempt){
+    attempt = attempt || 0;
+    if (attempt === 0) stripEl.innerHTML = chip("checking status…");
     fetch("api/status").then(function(r){ return r.json(); }).then(function(s){
       var html = "";
       html += chip(s.model);
@@ -208,9 +212,16 @@ footer{padding:0 0 60px;color:var(--muted);font-size:.83rem}
         hintEl.textContent = "Shared budget spent for today — a key is required to run.";
         hintEl.style.color = "var(--warn)";
       }
-    }).catch(function(){ stripEl.innerHTML = chip("status unavailable", "chip-fail"); });
+    }).catch(function(){
+      if (attempt < 12){
+        stripEl.innerHTML = chip("waking the server… (free tier sleeps when idle)", "chip-fail");
+        setTimeout(function(){ loadStatus(attempt + 1); }, 6000);
+      } else {
+        stripEl.innerHTML = chip("server unreachable", "chip-fail");
+      }
+    });
   }
-  loadStatus();
+  loadStatus(0);
 
   function renderAttempt(a){
     var gate, gateCls;
@@ -249,7 +260,8 @@ footer{padding:0 0 60px;color:var(--muted);font-size:.83rem}
 
     runBtn.disabled = true;
     runBtn.innerHTML = '<span class="spinner"></span> running';
-    logEl.innerHTML = '<div class="notice"><p><span class="spinner"></span> Generating, checking, and running tests in the sandbox. Up to three attempts — this can take 30–90 seconds.</p></div>';
+    logEl.innerHTML = '<div class="notice"><p><span class="spinner"></span> Generating, checking, and running tests in the sandbox. Up to three attempts &mdash; this can take 30&ndash;90 seconds.</p>' +
+      '<p style="font-size:.82rem;color:var(--muted)">If the server was asleep, add another minute for it to wake.</p></div>';
 
     var body = { prompt: prompt };
     var k = keyEl.value.trim();
@@ -295,7 +307,9 @@ footer{padding:0 0 60px;color:var(--muted);font-size:.83rem}
       logEl.innerHTML = h;
       loadStatus();
     }).catch(function(){
-      logEl.innerHTML = '<div class="notice" style="border-left-color:var(--warn)"><p>Could not reach the server.</p></div>';
+      logEl.innerHTML = '<div class="notice" style="border-left-color:var(--warn)">' +
+        '<div class="eyebrow" style="color:var(--warn)">no response</div>' +
+        '<p>Could not reach the server. On the free tier it sleeps when idle &mdash; wait about a minute and try again.</p></div>';
     }).finally(function(){
       runBtn.disabled = false;
       runBtn.textContent = "Run the agent";
