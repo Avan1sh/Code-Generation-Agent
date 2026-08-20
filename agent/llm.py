@@ -97,3 +97,36 @@ def strip_code_fences(text: str) -> str:
     if blocks:
         return max(blocks, key=len).strip()
     return text.strip()
+
+
+class LLMUnavailableError(RuntimeError):
+    """Raised when the configured model cannot be reached before a run starts."""
+
+
+def verify_llm_available() -> str:
+    """One cheap call to prove the configured model exists and is reachable.
+
+    Why this exists: providers retire model IDs. When that happens every request
+    404s, every problem records as a failure, and the run reports 0/N across all
+    three methods -- which reads as a catastrophic model result rather than a
+    dead endpoint. This turns that into a loud abort before the budget is spent,
+    the same role verify_sandbox_health() plays for the sandbox.
+
+    Learned the hard way: llama-3.3-70b-versatile was retired mid-project, and
+    two full 30-problem runs recorded 0/30 before anyone looked at the errors.
+    """
+    provider = os.environ.get("LLM_PROVIDER", "groq")
+    model = os.environ.get("LLM_MODEL", "(provider default)")
+    try:
+        get_llm(temperature=0.0).invoke("Reply with OK.")
+    except Exception as exc:
+        raise LLMUnavailableError(
+            "Configured model is not reachable.\n"
+            f"  provider: {provider}\n"
+            f"  model:    {model}\n"
+            f"  error:    {exc}\n"
+            "This is a configuration or provider-availability problem, NOT a "
+            "code-generation result. Providers retire model IDs, and a retired "
+            "ID fails every call identically."
+        ) from exc
+    return model

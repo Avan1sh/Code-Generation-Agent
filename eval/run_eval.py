@@ -41,6 +41,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agent.graph import run_agent  # noqa: E402
+from agent.llm import LLMUnavailableError, verify_llm_available  # noqa: E402
 from agent.sandbox import SandboxHealthError, verify_sandbox_health  # noqa: E402
 from agent.state import Problem  # noqa: E402
 from agent.usage import track_usage  # noqa: E402
@@ -109,6 +110,17 @@ def main() -> int:
     except SandboxHealthError as exc:
         print(f"Sandbox health check FAILED -- aborting before spending API budget.\n\n{exc}", file=sys.stderr)
         return 2
+
+    # Same rationale as the sandbox check, one call instead of the whole run: a
+    # retired model ID fails every request identically and would otherwise
+    # produce a 0/N result file that looks like a measurement rather than an
+    # outage. This is not hypothetical -- it happened, twice, on 2026-08-20.
+    try:
+        verify_llm_available()
+    except LLMUnavailableError as exc:
+        print(f"LLM preflight FAILED -- aborting before spending API budget.\n\n{exc}", file=sys.stderr)
+        return 3
+
 
     problems = load_problems()
     if args.limit is not None:
