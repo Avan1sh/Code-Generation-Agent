@@ -43,8 +43,15 @@ jobs:
       - name: Full suite
         run: pytest -q
 
-      - name: POSIX sandbox tests, listed explicitly
-        # Named separately so a silent skip is visible in the log rather than
-        # hiding inside an otherwise-green run -- the exact failure mode that
-        # let these tests go unexecuted for the whole project.
-        run: pytest tests/test_sandbox_posix.py -v --no-header
+      - name: POSIX sandbox tests must RUN, not skip
+        # A skipped test still exits 0, so "CI is green" would not prove these
+        # executed -- which is exactly how they went unrun for the whole project.
+        # This step fails the build if pytest reports any skip in that file.
+        run: |
+          set -o pipefail
+          pytest tests/test_sandbox_posix.py -v --no-header -rs | tee posix.log
+          if grep -qi "skipped" posix.log; then
+            echo "::error::POSIX sandbox tests were SKIPPED - the ceilings remain unverified"
+            exit 1
+          fi
+          echo "POSIX sandbox tests executed (no skips)"
