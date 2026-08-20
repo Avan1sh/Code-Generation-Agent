@@ -187,6 +187,12 @@ footer{padding:44px 0 64px;color:var(--muted);font-size:.83rem;display:flex;flex
         scanner is a faithful port of the actual rules, and every replay below is
         recorded output from a committed run, not a simulation.
       </p>
+      <p>
+        <strong>To watch the full loop run live</strong> &mdash; generate, gate, sandbox,
+        reflect, retry &mdash; there is a hosted version with a real backend at
+        <a href="https://selfcorrect-agent-demo.onrender.com">selfcorrect-agent-demo.onrender.com</a>. It sleeps when
+        idle, so the first request takes a minute to wake.
+      </p>
     </div>
   </div>
 </section>
@@ -263,7 +269,7 @@ footer{padding:44px 0 64px;color:var(--muted);font-size:.83rem;display:flex;flex
 </main>
 
 <footer class="wrap">
-  <div><a href="./">Back to the results</a> &middot; <a href="https://github.com/Avan1sh/Code-Generation-Agent">Source on GitHub</a></div>
+  <div><a href="./">Back to the results</a> &middot; <a href="https://selfcorrect-agent-demo.onrender.com">Run the agent live</a> &middot; <a href="https://github.com/Avan1sh/Code-Generation-Agent">Source on GitHub</a></div>
   <div>Scanner rules ported from <span class="mono">agent/nodes/static_check.py</span>. Replay data read from committed run files.</div>
 </footer>
 

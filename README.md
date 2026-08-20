@@ -1,5 +1,9 @@
 # selfcorrect-agent
 
+[![tests](https://github.com/Avan1sh/Code-Generation-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Avan1sh/Code-Generation-Agent/actions/workflows/ci.yml)
+
+**[Results and methodology](https://avan1sh.github.io/Code-Generation-Agent/)** · **[Try the static gate](https://avan1sh.github.io/Code-Generation-Agent/try.html)** · **[Run the agent live](https://selfcorrect-agent-demo.onrender.com)**
+
 A LangGraph agent that generates Pydantic v2 code, detects its own failures, and
 retries with a diagnosis — evaluated against two baselines under a fixed compute
 budget.
@@ -151,8 +155,22 @@ temporary directory and run under `pytest` in a subprocess
 - a wall-clock timeout (all platforms), and
 - `RLIMIT_AS` / `RLIMIT_CPU` / `RLIMIT_NPROC` via `resource.setrlimit` (**POSIX only**).
 
-See [Limitations](#limitations) — the Windows gap is real and is recorded in every
-run's metadata.
+**These ceilings are verified, not assumed.** They were a design claim for most of
+this project's life, because development happened on Windows where
+`resource.setrlimit` does not exist and
+[tests/test_sandbox_posix.py](tests/test_sandbox_posix.py) was permanently
+skipped. CI now runs on `ubuntu-latest`, where those tests execute for real —
+proving the ceilings both *permit* valid code and *stop* a runaway allocation
+without falling back on the wall clock. The workflow **fails the build if those
+tests skip**, since a skipped test still exits 0 and a green run would otherwise
+prove nothing.
+
+The hosted demo is the second confirmation: it reports
+`posix_resource_limits_active: true` and a measured startup probe of **17.1s**
+against its 45s budget.
+
+See [Limitations](#limitations) — the Windows gap is still real for local runs and
+is recorded in every run's metadata.
 
 **The sandbox proves itself healthy before the eval spends anything.**
 `verify_sandbox_health()` runs known-good Pydantic code through the sandbox under
@@ -477,15 +495,22 @@ they are why `verify_llm_available()` now runs before any budget is spent.
   records `posix_resource_limits_active` in its metadata, because results are not
   fully comparable across operating systems. For a stronger guarantee, run under
   WSL/Linux or in a container.
-- **The POSIX resource-limit path has not been executed on the machine this was
-  built on** (Windows only, no Linux runtime available). Its tests exist and are
-  correct, but they are `skipif`-ed on Windows and have therefore never run — so
-  "the memory and CPU ceilings work" is currently a *design* claim, not a measured
-  one. [tests/test_sandbox_posix.py](tests/test_sandbox_posix.py) will exercise it
-  on any Linux CI runner or container; until that has run, treat the POSIX limits
-  as unverified. `verify_sandbox_health()` is the mitigation: even unverified, a
-  ceiling too tight to run valid code fails loudly at startup instead of silently
-  zeroing the eval.
+- **The sandbox does not isolate the network.** It bounds CPU, memory, process
+  count, and wall-clock time — all now verified on Linux — but generated code
+  could still open a socket. Container isolation is the outer boundary. This is
+  the one sandbox guarantee that remains unproven, and it is unproven because it
+  does not exist, not because it is untested.
+- **Local Windows runs still have no memory or CPU ceiling**, only a wall-clock
+  timeout, since `resource.setrlimit` is POSIX-only. Every run file records
+  `posix_resource_limits_active` for this reason, and results are not strictly
+  comparable across operating systems.
+- **The sandbox timeout is hardware-dependent.** The 10s default suits a
+  developer machine; on constrained shared hosting it is far too short, and a
+  valid solution then reports `timed_out` — which reads as the model writing an
+  infinite loop. `SANDBOX_TIMEOUT_SEC` makes it configurable and
+  `/api/status` reports the measured probe duration so the value can be set from
+  data. This was found the hard way on the live demo, where the probe takes
+  **17.1s** against the 1.7s measured locally.
 - **n = 12.** Single-problem differences are noise. `analyze.py` says so on every
   report.
 - **The eval set is hand-authored by one person** and probes traps chosen in
