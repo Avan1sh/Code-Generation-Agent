@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import sys
+from contextlib import asynccontextmanager
 import threading
 import time
 from collections import deque
@@ -56,12 +57,61 @@ RATE_LIMIT_REQUESTS = 4                # per IP
 RATE_LIMIT_WINDOW_SEC = 600
 QUEUE_WAIT_SEC = 45
 
-app = FastAPI(title="selfcorrect-agent demo", docs_url=None, redoc_url=None)
-
 # Measured at startup and surfaced in /api/status. A probe that eats most of
 # the timeout budget means this hardware is about to start reporting valid
 # solutions as "timed out" -- which reads as the model writing infinite loops.
-_probe = {"seconds": None, "marginal": None}
+# "not_run" is the honest default: a probe that failed and a probe that never
+# executed must not look identical in /api/status. The first version recorded
+# only success, so a blank reading had two possible causes and no way to tell
+# them apart.
+_probe = {"status": "not_run", "seconds": None, "marginal": None, "detail": None}
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Same guards the eval uses, for the same reason: fail loudly, not silently.
+
+    Uses the lifespan API rather than the deprecated on_event hook so there is no
+    ambiguity about whether it ran -- an earlier version recorded nothing and the
+    cause could not be distinguished between "never fired" and "failed".
+    """
+    try:
+        probe = verify_sandbox_health()
+        # Known-good code needing more than half the budget means real solutions,
+        # which do more work, will start timing out on this hardware.
+        marginal = probe > DEFAULT_TIMEOUT_SEC * 0.5
+        _probe.update(status="ok", seconds=round(probe, 1), marginal=marginal, detail=None)
+        print(f"[startup] sandbox health OK (probe {probe:.1f}s, timeout {DEFAULT_TIMEOUT_SEC}s)", flush=True)
+        if marginal:
+            print(
+                f"[startup] WARNING: probe used {probe:.1f}s of a {DEFAULT_TIMEOUT_SEC}s budget. "
+                "Real solutions will report timed_out on this hardware, which looks like "
+                "a model failure but is not. Raise SANDBOX_TIMEOUT_SEC.",
+                file=sys.stderr, flush=True,
+            )
+    except SandboxHealthError as exc:
+        _probe.update(status="failed", seconds=None, marginal=None, detail=str(exc)[:300])
+        print("[startup] SANDBOX UNHEALTHY", file=sys.stderr, flush=True)
+        print(str(exc), file=sys.stderr, flush=True)
+    except Exception as exc:  # noqa: BLE001
+        # Anything else is still recorded rather than leaving a blank reading.
+        _probe.update(status="error", seconds=None, marginal=None,
+                      detail=f"{type(exc).__name__}: {exc}"[:300])
+        print(f"[startup] PROBE ERROR: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+
+    print(f"[startup] POSIX resource limits active: {sys.platform != 'win32'}", flush=True)
+    if os.environ.get("GROQ_API_KEY"):
+        try:
+            print(f"[startup] model reachable: {verify_llm_available()}", flush=True)
+        except LLMUnavailableError as exc:
+            print("[startup] LLM PREFLIGHT FAILED", file=sys.stderr, flush=True)
+            print(str(exc), file=sys.stderr, flush=True)
+    else:
+        print("[startup] no shared key set -- bring-your-own-key mode only", flush=True)
+    yield
+
+
+app = FastAPI(title="selfcorrect-agent demo", docs_url=None, redoc_url=None, lifespan=_lifespan)
+
 
 # Serialises agent runs: see point 2 in the module docstring.
 _run_slot = threading.Semaphore(1)
@@ -119,8 +169,10 @@ def status() -> dict:
         "model": os.environ.get("LLM_MODEL", "(provider default)"),
         "posix_resource_limits_active": sys.platform != "win32",
         "sandbox_timeout_sec": DEFAULT_TIMEOUT_SEC,
+        "sandbox_probe_status": _probe["status"],
         "sandbox_probe_sec": _probe["seconds"],
         "sandbox_timeout_marginal": _probe["marginal"],
+        "sandbox_probe_detail": _probe["detail"],
     }
 
 
@@ -214,22 +266,7 @@ def solve(req: SolveRequest, request: Request) -> JSONResponse:
         _run_slot.release()
 
 
-@app.on_event("startup")
-def _preflight() -> None:
-    """Same guards the eval uses, for the same reason: fail loudly, not silently."""
-    try:
-        verify_sandbox_health()
-        print("[startup] sandbox health: OK", flush=True)
-    except SandboxHealthError as exc:
-        print(f"[startup] SANDBOX UNHEALTHY:\n{exc}", file=sys.stderr, flush=True)
-    print(f"[startup] POSIX resource limits active: {sys.platform != 'win32'}", flush=True)
-    if os.environ.get("GROQ_API_KEY"):
-        try:
-            print(f"[startup] model reachable: {verify_llm_available()}", flush=True)
-        except LLMUnavailableError as exc:
-            print(f"[startup] LLM PREFLIGHT FAILED:\n{exc}", file=sys.stderr, flush=True)
-    else:
-        print("[startup] no shared key set -- demo runs in bring-your-own-key mode only", flush=True)
+    yield
 
 
 _STATIC = Path(__file__).resolve().parent / "static"
