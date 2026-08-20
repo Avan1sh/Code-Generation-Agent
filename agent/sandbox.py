@@ -49,7 +49,12 @@ class SandboxHealthError(RuntimeError):
 # verify_sandbox_health() exists: rather than trusting the constant, the value
 # is validated at startup on whatever platform actually runs it, and a bad
 # value fails loudly instead of silently failing every solution.
-DEFAULT_MEMORY_MB = 2048
+# Overridable because the right value depends on the host, not on the code: a
+# ceiling ABOVE the container's own memory budget protects nothing. On a
+# 512MB instance a 2048MB RLIMIT_AS lets the child grow until the *container*
+# is OOM-killed, taking the server with it -- the limit has to sit below the
+# container budget to do any work at all.
+DEFAULT_MEMORY_MB = int(os.environ.get("SANDBOX_MEMORY_MB", "2048"))
 
 # Wall-clock ceiling for one test run. 10s is ample on a developer machine, and
 # far too tight on constrained shared hosting: Render's free tier allocates a

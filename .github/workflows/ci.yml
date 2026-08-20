@@ -40,6 +40,22 @@ jobs:
           print(f"POSIX limits active; probe {probe:.1f}s of a {DEFAULT_TIMEOUT_SEC}s budget")
           PY
 
+      - name: Deployment memory ceiling must still permit valid code
+        # The hosted demo runs on a 512MB instance, so SANDBOX_MEMORY_MB is set
+        # to 300 there -- a ceiling above the container's own budget protects
+        # nothing. Windows cannot check this (RLIMIT_AS is inert), so Linux CI is
+        # the only place it can be validated before deploying. If 300MB is too
+        # tight for CPython plus pydantic-core, this fails here rather than
+        # silently breaking every run in production.
+        env:
+          SANDBOX_MEMORY_MB: "300"
+        run: |
+          python - <<'PY'
+          from agent.sandbox import verify_sandbox_health, DEFAULT_MEMORY_MB
+          probe = verify_sandbox_health()
+          print(f"OK: valid code runs under a {DEFAULT_MEMORY_MB}MB RLIMIT_AS ({probe:.1f}s)")
+          PY
+
       - name: Full suite
         run: pytest -q
 

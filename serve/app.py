@@ -30,6 +30,7 @@ import sys
 from contextlib import asynccontextmanager
 import threading
 import time
+import uuid
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,13 +44,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agent.graph import run_agent  # noqa: E402
 from agent.llm import LLMUnavailableError, use_api_key, verify_llm_available  # noqa: E402
-from agent.sandbox import DEFAULT_TIMEOUT_SEC, SandboxHealthError, verify_sandbox_health  # noqa: E402
+from agent.sandbox import (  # noqa: E402
+    DEFAULT_MEMORY_MB,
+    DEFAULT_TIMEOUT_SEC,
+    SandboxHealthError,
+    verify_sandbox_health,
+)
 from agent.state import Problem  # noqa: E402
 from agent.usage import track_usage  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Limits. Every one of these is a cost or safety control, not a preference.
 # ---------------------------------------------------------------------------
+# A per-process identity. If this changes between two requests the worker was
+# restarted -- which is how an OOM kill looks from the outside: the request
+# returns 200 with an empty body and nothing else says why.
+_BOOT_ID = uuid.uuid4().hex[:8]
+_BOOT_TIME = time.time()
+
 MAX_ATTEMPTS = 3                       # fixed server-side; clients cannot raise it
 MAX_PROMPT_CHARS = 1200
 DAILY_CALL_BUDGET = int(os.environ.get("DAILY_CALL_BUDGET", "400"))
@@ -168,6 +180,9 @@ def status() -> dict:
         "max_prompt_chars": MAX_PROMPT_CHARS,
         "model": os.environ.get("LLM_MODEL", "(provider default)"),
         "posix_resource_limits_active": sys.platform != "win32",
+        "boot_id": _BOOT_ID,
+        "uptime_sec": round(time.time() - _BOOT_TIME, 1),
+        "sandbox_memory_mb": DEFAULT_MEMORY_MB,
         "sandbox_timeout_sec": DEFAULT_TIMEOUT_SEC,
         "sandbox_probe_status": _probe["status"],
         "sandbox_probe_sec": _probe["seconds"],

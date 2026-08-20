@@ -23,5 +23,11 @@ services:
       # measured probe duration so this can be tuned from data, not guessed.
       - key: SANDBOX_TIMEOUT_SEC
         value: "45"
+      # The free instance has 512MB total. An RLIMIT_AS above that protects
+      # nothing: the sandbox child can grow until the CONTAINER is OOM-killed,
+      # which takes the server down mid-response and surfaces as HTTP 200 with
+      # an empty body. The ceiling must sit below the container's own budget.
+      - key: SANDBOX_MEMORY_MB
+        value: "300"
       - key: GROQ_API_KEY
         sync: false
