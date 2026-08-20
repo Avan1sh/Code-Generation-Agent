@@ -18,5 +18,10 @@ services:
         value: openai/gpt-oss-120b
       - key: DAILY_CALL_BUDGET
         value: "400"
+      # Free-tier CPU is a fraction of a core; the 10s default is far too tight
+      # there and makes valid solutions report timed_out. /api/status exposes the
+      # measured probe duration so this can be tuned from data, not guessed.
+      - key: SANDBOX_TIMEOUT_SEC
+        value: "45"
       - key: GROQ_API_KEY
         sync: false

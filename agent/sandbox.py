@@ -18,6 +18,7 @@ README.md's Limitations section.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -49,6 +50,14 @@ class SandboxHealthError(RuntimeError):
 # is validated at startup on whatever platform actually runs it, and a bad
 # value fails loudly instead of silently failing every solution.
 DEFAULT_MEMORY_MB = 2048
+
+# Wall-clock ceiling for one test run. 10s is ample on a developer machine, and
+# far too tight on constrained shared hosting: Render's free tier allocates a
+# fraction of a CPU, where interpreter startup plus a pydantic import alone can
+# exceed it. When that happens every attempt reports timed_out and the run looks
+# like the model wrote an infinite loop, which is the exact class of
+# misattribution this project tries to eliminate. Overridable per environment.
+DEFAULT_TIMEOUT_SEC = int(os.environ.get("SANDBOX_TIMEOUT_SEC", "10"))
 
 
 def _limit_resources(memory_mb: int, cpu_sec: int):
@@ -96,7 +105,7 @@ def test_health():
 """
 
 
-def verify_sandbox_health(timeout_sec: int = 60, memory_mb: int = DEFAULT_MEMORY_MB) -> None:
+def verify_sandbox_health(timeout_sec: int = 60, memory_mb: int = DEFAULT_MEMORY_MB) -> float:
     """Runs known-good code under the configured limits. Raises if it fails.
 
     Why this exists: if the resource ceilings are set too tight for the
@@ -123,11 +132,16 @@ def verify_sandbox_health(timeout_sec: int = 60, memory_mb: int = DEFAULT_MEMORY
             f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
         )
 
+    # Returned so callers can compare it against the configured timeout: a probe
+    # that consumes most of the budget means the ceiling is about to start
+    # rejecting valid code on this hardware.
+    return result.duration_sec
+
 
 def run_tests_in_sandbox(
     solution_code: str,
     test_code: str,
-    timeout_sec: int = 10,
+    timeout_sec: int | None = None,
     memory_mb: int = DEFAULT_MEMORY_MB,
 ) -> ExecutionResult:
     """Writes solution_code + test_code to a scratch dir and runs pytest on them.
@@ -135,6 +149,8 @@ def run_tests_in_sandbox(
     test_code must `from solution import ...` -- the solution module name is
     fixed so every problem's canonical tests.py can rely on it.
     """
+    if timeout_sec is None:
+        timeout_sec = DEFAULT_TIMEOUT_SEC
     with tempfile.TemporaryDirectory(prefix="selfcorrect_sandbox_") as tmp:
         tmp_path = Path(tmp)
         (tmp_path / "solution.py").write_text(solution_code, encoding="utf-8")

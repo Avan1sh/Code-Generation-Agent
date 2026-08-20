@@ -218,11 +218,23 @@ def test_health_check_raises_when_limits_are_unworkable():
     0 passes that look like model failure.
     """
     with pytest.raises(SandboxHealthError) as exc:
-        # 1 second is below what interpreter startup + pydantic import needs on
-        # any platform, so this reproduces "limits reject known-good code"
-        # without depending on POSIX memory limits being available.
-        verify_sandbox_health(timeout_sec=1)
+        # A zero budget is the only deterministic choice: an earlier version used
+        # 1 second and passed only on a cold machine, silently going green on a
+        # warm one. Any real process takes more than zero seconds.
+        verify_sandbox_health(timeout_sec=0)
 
     message = str(exc.value)
     assert "misconfiguration" in message
     assert "not a code-generation failure" in message
+
+
+def test_health_check_returns_probe_duration_when_healthy():
+    """The healthy path must return a measured duration, not None.
+
+    Regression guard: an early return placed above the raise once disabled the
+    failure branch entirely, so the check reported healthy no matter what. A
+    disabled guard is worse than no guard, because it is trusted.
+    """
+    seconds = verify_sandbox_health()
+    assert isinstance(seconds, float)
+    assert seconds > 0

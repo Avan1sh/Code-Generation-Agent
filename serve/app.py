@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agent.graph import run_agent  # noqa: E402
 from agent.llm import LLMUnavailableError, use_api_key, verify_llm_available  # noqa: E402
-from agent.sandbox import SandboxHealthError, verify_sandbox_health  # noqa: E402
+from agent.sandbox import DEFAULT_TIMEOUT_SEC, SandboxHealthError, verify_sandbox_health  # noqa: E402
 from agent.state import Problem  # noqa: E402
 from agent.usage import track_usage  # noqa: E402
 
@@ -54,10 +54,14 @@ MAX_PROMPT_CHARS = 1200
 DAILY_CALL_BUDGET = int(os.environ.get("DAILY_CALL_BUDGET", "400"))
 RATE_LIMIT_REQUESTS = 4                # per IP
 RATE_LIMIT_WINDOW_SEC = 600
-RUN_TIMEOUT_SEC = 180
 QUEUE_WAIT_SEC = 45
 
 app = FastAPI(title="selfcorrect-agent demo", docs_url=None, redoc_url=None)
+
+# Measured at startup and surfaced in /api/status. A probe that eats most of
+# the timeout budget means this hardware is about to start reporting valid
+# solutions as "timed out" -- which reads as the model writing infinite loops.
+_probe = {"seconds": None, "marginal": None}
 
 # Serialises agent runs: see point 2 in the module docstring.
 _run_slot = threading.Semaphore(1)
@@ -114,6 +118,9 @@ def status() -> dict:
         "max_prompt_chars": MAX_PROMPT_CHARS,
         "model": os.environ.get("LLM_MODEL", "(provider default)"),
         "posix_resource_limits_active": sys.platform != "win32",
+        "sandbox_timeout_sec": DEFAULT_TIMEOUT_SEC,
+        "sandbox_probe_sec": _probe["seconds"],
+        "sandbox_timeout_marginal": _probe["marginal"],
     }
 
 
