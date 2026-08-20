@@ -1,0 +1,50 @@
+name: tests
+
+# Runs on Linux, which is the point. The POSIX resource-limit path in
+# agent/sandbox.py (RLIMIT_AS / RLIMIT_CPU / RLIMIT_NPROC) does not exist on
+# Windows, where this project was developed, so tests/test_sandbox_posix.py was
+# permanently skipped and the memory and CPU ceilings stayed a design claim
+# rather than a measured one. Here those tests actually execute.
+#
+# No API key is required: every test in the suite is deterministic and
+# key-free by design. LLM output quality is measured by eval/run_eval.py, which
+# is deliberately not run in CI.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Confirm the POSIX sandbox path is reachable here
+        run: |
+          python - <<'PY'
+          import sys
+          from agent.sandbox import verify_sandbox_health, DEFAULT_TIMEOUT_SEC
+          assert sys.platform != "win32", "expected a POSIX runner"
+          probe = verify_sandbox_health()
+          print(f"POSIX limits active; probe {probe:.1f}s of a {DEFAULT_TIMEOUT_SEC}s budget")
+          PY
+
+      - name: Full suite
+        run: pytest -q
+
+      - name: POSIX sandbox tests, listed explicitly
+        # Named separately so a silent skip is visible in the log rather than
+        # hiding inside an otherwise-green run -- the exact failure mode that
+        # let these tests go unexecuted for the whole project.
+        run: pytest tests/test_sandbox_posix.py -v --no-header
