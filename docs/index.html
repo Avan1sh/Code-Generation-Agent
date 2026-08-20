@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="A self-correcting code-generation agent, and the measurement discipline that turned an apparent +4 win into an honest +1 inside the noise floor.">
+<title>Measuring Self-Correction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&display=swap">
+
+<style>
+:root{
+  --paper:#EDF0F4;
+  --surface:#FBFCFD;
+  --surface-2:#F3F6F9;
+  --ink:#121820;
+  --ink-2:#3A4553;
+  --muted:#5B6675;
+  --rule:#D2D9E2;
+  --rule-strong:#B6C1CE;
+  --s1:#3D6BA8;
+  --s2:#B07D2B;
+  --s3:#008573;
+  --warn:#A8492E;
+  --warn-bg:#F6E7E1;
+  --band:#DDE3EB;
+  --shadow:0 1px 2px rgba(18,24,32,.06),0 8px 24px -16px rgba(18,24,32,.28);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D1219;
+    --surface:#161C25;
+    --surface-2:#1C242F;
+    --ink:#E6EBF1;
+    --ink-2:#BAC5D2;
+    --muted:#8C99A9;
+    --rule:#28323F;
+    --rule-strong:#3A4756;
+    --s1:#5286C7;
+    --s2:#BC8730;
+    --s3:#279884;
+    --warn:#D98A62;
+    --warn-bg:#2A1D18;
+    --band:#232C38;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D1219;
+  --surface:#161C25;
+  --surface-2:#1C242F;
+  --ink:#E6EBF1;
+  --ink-2:#BAC5D2;
+  --muted:#8C99A9;
+  --rule:#28323F;
+  --rule-strong:#3A4756;
+  --s1:#5286C7;
+  --s2:#BC8730;
+  --s3:#279884;
+  --warn:#D98A62;
+  --warn-bg:#2A1D18;
+  --band:#232C38;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -18px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:16px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+.col{max-width:680px}
+
+h1,h2,h3{font-family:Newsreader,Georgia,"Times New Roman",serif;font-weight:500;text-wrap:balance;margin:0}
+h1{font-size:clamp(2.6rem,6vw,4.1rem);line-height:1.02;letter-spacing:-.018em}
+h2{font-size:clamp(1.65rem,3vw,2.2rem);line-height:1.12;letter-spacing:-.012em}
+h3{font-size:1.12rem;line-height:1.3;font-weight:600}
+p{margin:0}
+em{font-style:italic}
+strong{font-weight:600;color:var(--ink)}
+
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+code{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:.88em;background:var(--surface-2);border:1px solid var(--rule);border-radius:3px;padding:.08em .34em;color:var(--ink-2)}
+
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:500;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--muted);
+}
+
+/* ---------- header ---------- */
+header{border-bottom:1px solid var(--rule);background:var(--surface)}
+.head-inner{padding:76px 0 60px;display:flex;flex-direction:column;gap:26px}
+.lede{font-size:1.16rem;line-height:1.6;color:var(--ink-2);max-width:60ch}
+.meta-row{display:flex;flex-wrap:wrap;gap:10px;padding-top:6px}
+.chip{
+  font-family:"IBM Plex Mono",monospace;font-size:.74rem;letter-spacing:.02em;
+  border:1px solid var(--rule-strong);border-radius:2px;padding:5px 10px;
+  color:var(--ink-2);background:var(--surface-2);
+}
+
+/* ---------- sections ---------- */
+section{padding:68px 0;border-bottom:1px solid var(--rule)}
+section:last-of-type{border-bottom:0}
+.sec-head{display:flex;flex-direction:column;gap:12px;margin-bottom:34px}
+.stack{display:flex;flex-direction:column;gap:18px}
+.stack-tight{display:flex;flex-direction:column;gap:10px}
+
+/* ---------- hero verdict ---------- */
+.verdict{
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.verdict-top{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  border-bottom:1px solid var(--rule);
+}
+.vcell{padding:26px 24px;border-right:1px solid var(--rule);display:flex;flex-direction:column;gap:7px}
+.vcell:last-child{border-right:0}
+.vnum{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:2.15rem;line-height:1;font-weight:500;letter-spacing:-.02em}
+.vlabel{font-size:.82rem;color:var(--muted)}
+.vnote{font-size:.78rem;color:var(--muted)}
+.verdict-body{padding:26px 24px;background:var(--surface-2);display:flex;flex-direction:column;gap:12px}
+
+/* ---------- noise floor figure ---------- */
+figure{margin:0;display:flex;flex-direction:column;gap:14px}
+.fig-frame{
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+  padding:30px 26px 22px;box-shadow:var(--shadow);
+}
+figcaption{font-size:.86rem;color:var(--muted);max-width:66ch}
+.fig-title{font-size:.95rem;font-weight:600;color:var(--ink);margin-bottom:4px}
+.fig-sub{font-size:.83rem;color:var(--muted)}
+svg{display:block;max-width:100%;height:auto}
+
+/* ---------- bar rows ---------- */
+.bars{display:flex;flex-direction:column;gap:2px}
+.bar-row{
+  display:grid;grid-template-columns:170px 1fr 128px;gap:16px;align-items:center;
+  padding:9px 10px;border-radius:3px;transition:background .13s ease;
+}
+.bar-row:hover{background:var(--surface-2)}
+.bar-name{display:flex;align-items:center;gap:9px;font-size:.86rem;color:var(--ink-2)}
+.swatch{width:11px;height:11px;border-radius:2px;flex:none}
+.track{background:var(--band);border-radius:3px;height:20px;position:relative;overflow:hidden}
+.fill{height:100%;border-radius:0 4px 4px 0;position:relative}
+.bar-val{
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  font-size:.83rem;color:var(--ink-2);text-align:right;
+}
+.bar-val .sub{color:var(--muted)}
+
+/* ---------- tables ---------- */
+.scroller{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.87rem;min-width:520px}
+th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{
+  font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);background:var(--surface-2);white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{
+  display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.7rem;
+  padding:2px 7px;border-radius:2px;border:1px solid currentColor;white-space:nowrap;
+}
+.tag-no{color:var(--warn)}
+.tag-yes{color:var(--s3)}
+
+/* ---------- callout ---------- */
+.callout{
+  border-left:2px solid var(--warn);background:var(--warn-bg);
+  padding:18px 22px;border-radius:0 3px 3px 0;display:flex;flex-direction:column;gap:9px;
+}
+.callout .eyebrow{color:var(--warn)}
+
+/* ---------- run cards ---------- */
+.runs{display:flex;flex-direction:column}
+.run{
+  display:grid;grid-template-columns:auto 1fr;gap:22px;
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+  padding:22px 24px;margin-bottom:12px;
+}
+.run-n{
+  font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.1em;color:var(--muted);
+  border-right:1px solid var(--rule);padding-right:22px;white-space:nowrap;
+}
+.run-body{display:flex;flex-direction:column;gap:12px;min-width:0}
+.run-title{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+.run-model{font-family:"IBM Plex Mono",monospace;font-size:.88rem;color:var(--ink)}
+.run-verdict{font-size:.8rem;color:var(--warn);font-weight:500}
+
+/* ---------- graph ---------- */
+.graph{
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+  padding:24px;overflow-x:auto;
+}
+.graph pre{
+  margin:0;font-family:"IBM Plex Mono",monospace;font-size:.76rem;line-height:1.75;
+  color:var(--ink-2);white-space:pre;
+}
+
+/* ---------- guarantee list ---------- */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(276px,1fr));gap:2px}
+.gcard{
+  background:var(--surface);border:1px solid var(--rule);
+  padding:22px 22px;display:flex;flex-direction:column;gap:9px;
+}
+.gcard h3{font-size:.95rem}
+.gcard p{font-size:.87rem;color:var(--ink-2)}
+
+.legend{display:flex;flex-wrap:wrap;gap:18px;padding-top:4px}
+.legend-item{display:flex;align-items:center;gap:7px;font-size:.79rem;color:var(--muted)}
+
+footer{padding:52px 0 70px;color:var(--muted);font-size:.84rem;display:flex;flex-direction:column;gap:8px}
+
+a{color:var(--ink);text-decoration-color:var(--rule-strong);text-underline-offset:3px}
+a:hover{text-decoration-color:currentColor}
+a:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+
+@media (max-width:620px){
+  .bar-row{grid-template-columns:1fr;gap:6px}
+  .bar-val{text-align:left}
+  .run{grid-template-columns:1fr;gap:14px}
+  .run-n{border-right:0;border-bottom:1px solid var(--rule);padding:0 0 12px}
+  .head-inner{padding:52px 0 44px}
+  section{padding:52px 0}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap head-inner">
+    <div class="eyebrow">LangGraph &middot; Pydantic v2 &middot; 40-problem eval</div>
+    <h1>Does a model fix<br>its own mistakes?</h1>
+    <p class="lede">
+      A self-correcting code-generation agent, measured against a baseline it must beat
+      and an oracle it cannot. The headline says the loop won by four problems.
+      The decomposition says it won by one &mdash; and that one is inside the
+      harness&rsquo;s own noise floor.
+    </p>
+    <div class="meta-row">
+      <span class="chip">40 problems</span>
+      <span class="chip">185 assertions</span>
+      <span class="chip">147 tests passing</span>
+      <span class="chip">4 measured runs</span>
+      <span class="chip">0 fabricated numbers</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <div class="eyebrow">The result</div>
+      <h2>26 / 30 &rarr; 30 / 30, and why that is not a win</h2>
+    </div>
+
+    <div class="verdict">
+      <div class="verdict-top">
+        <div class="vcell">
+          <div class="vnum" style="color:var(--s1)">26<span style="color:var(--muted);font-size:1.2rem">/30</span></div>
+          <div class="vlabel">single_shot &mdash; the floor</div>
+          <div class="vnote mono">805 tokens / solve</div>
+        </div>
+        <div class="vcell">
+          <div class="vnum" style="color:var(--s2)">28<span style="color:var(--muted);font-size:1.2rem">/30</span></div>
+          <div class="vlabel">best_of_n &mdash; oracle ceiling</div>
+          <div class="vnote mono">2,347 tokens / solve</div>
+        </div>
+        <div class="vcell">
+          <div class="vnum" style="color:var(--s3)">30<span style="color:var(--muted);font-size:1.2rem">/30</span></div>
+          <div class="vlabel">self_correct &mdash; the agent</div>
+          <div class="vnote mono">812 tokens / solve</div>
+        </div>
+      </div>
+      <div class="verdict-body">
+        <p style="font-size:.92rem;color:var(--ink-2)">
+          <strong>29 of the agent&rsquo;s 30 solves landed on attempt&nbsp;1</strong> &mdash; which uses the
+          same prompt as the baseline and runs no reflection at all. Only one problem was
+          actually repaired by the correction step.
+        </p>
+      </div>
+    </div>
+
+    <div class="stack" style="margin-top:34px">
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr>
+              <th>Problem the baseline missed</th>
+              <th>How the agent got it</th>
+              <th>The loop?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">pyd_011_type_adapter</td>
+              <td>attempt 1 &mdash; baseline had hit a 429 rate limit</td>
+              <td><span class="tag tag-no">infrastructure</span></td>
+            </tr>
+            <tr>
+              <td class="mono">pyd_014_validation_info</td>
+              <td>attempt 1, no reflection ran</td>
+              <td><span class="tag tag-no">variance</span></td>
+            </tr>
+            <tr>
+              <td class="mono">pyd_015_root_model</td>
+              <td>attempt 1, no reflection ran</td>
+              <td><span class="tag tag-no">variance</span></td>
+            </tr>
+            <tr>
+              <td class="mono">pyd_020_validate_default</td>
+              <td><strong>attempt 2, after reflection</strong></td>
+              <td><span class="tag tag-yes">yes</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <div class="eyebrow">The measurement</div>
+      <h2>The noise floor is wider than the effect</h2>
+      <p style="color:var(--ink-2)">
+        <code>single_shot</code> and the agent&rsquo;s attempt&nbsp;1 send an identical prompt to an
+        identical model at temperature&nbsp;0. They still disagreed on
+        <strong>3 of 30 problems</strong>. Provider-side batching makes temperature&nbsp;0
+        non-deterministic, so that disagreement rate is the floor beneath which this
+        harness cannot resolve anything.
+      </p>
+    </div>
+
+    <figure>
+      <div class="fig-frame">
+        <div class="fig-title">Measured effect against harness noise, n = 30</div>
+        <div class="fig-sub">Problems gained by the correction loop</div>
+        <svg viewBox="0 0 720 190" role="img" aria-label="The correction loop's measured effect of plus 1 problem sits inside a noise band of plus or minus 3 problems, so it cannot be distinguished from run-to-run variance.">
+          <!-- noise band -->
+          <rect x="252" y="46" width="216" height="62" fill="var(--band)"/>
+          <!-- zero line -->
+          <line x1="360" y1="38" x2="360" y2="116" stroke="var(--rule-strong)" stroke-width="1" stroke-dasharray="3 3"/>
+          <!-- axis -->
+          <line x1="72" y1="116" x2="648" y2="116" stroke="var(--rule-strong)" stroke-width="1"/>
+          <!-- ticks -->
+          <g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)" text-anchor="middle">
+            <text x="72"  y="134">-8</text>
+            <text x="216" y="134">-4</text>
+            <text x="360" y="134">0</text>
+            <text x="504" y="134">+4</text>
+            <text x="648" y="134">+8</text>
+          </g>
+          <!-- band label -->
+          <text x="360" y="32" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">
+            noise floor &plusmn;3 problems
+          </text>
+          <!-- measured marker -->
+          <g>
+            <line x1="396" y1="42" x2="396" y2="112" stroke="var(--s3)" stroke-width="2"/>
+            <circle cx="396" cy="77" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/>
+          </g>
+          <text x="408" y="66" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--ink)">+1 measured</text>
+          <text x="408" y="82" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="var(--muted)">the correction step</text>
+          <!-- verdict -->
+          <text x="72" y="168" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="var(--warn)">
+            Inside the band &mdash; indistinguishable from run-to-run variance.
+          </text>
+        </svg>
+      </div>
+      <figcaption>
+        The defensible claim is that the loop <em>did not hurt</em> &mdash; it broke zero problems.
+        Not that it helped. An A/B difference smaller than about three problems at this
+        n cannot be separated from the harness&rsquo;s own instability, however carefully
+        the two arms are matched.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <div class="eyebrow">Cost</div>
+      <h2>The result that does clear the noise</h2>
+      <p style="color:var(--ink-2)">
+        Tokens are counted from the provider&rsquo;s own usage metadata, not estimated from
+        call counts. Per <em>solved</em> problem is the comparison that matters &mdash; a method
+        can look cheap in total while being expensive per unit of work delivered.
+      </p>
+    </div>
+
+    <div class="fig-frame">
+      <div class="fig-title" style="margin-bottom:14px">Tokens per solved problem &mdash; <span class="mono">openai/gpt-oss-120b</span>, n = 30</div>
+      <div class="bars">
+        <div class="bar-row">
+          <div class="bar-name"><span class="swatch" style="background:var(--s1)"></span>single_shot</div>
+          <div class="track"><div class="fill" style="width:34.3%;background:var(--s1)"></div></div>
+          <div class="bar-val">805 <span class="sub">&middot; 26/30</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-name"><span class="swatch" style="background:var(--s2)"></span>best_of_n</div>
+          <div class="track"><div class="fill" style="width:100%;background:var(--s2)"></div></div>
+          <div class="bar-val">2,347 <span class="sub">&middot; 28/30</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-name"><span class="swatch" style="background:var(--s3)"></span>self_correct</div>
+          <div class="track"><div class="fill" style="width:34.6%;background:var(--s3)"></div></div>
+          <div class="bar-val">812 <span class="sub">&middot; 30/30</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col stack" style="margin-top:26px">
+      <p style="color:var(--ink-2)">
+        <strong>Undirected resampling is the expensive strategy, and it scored lower.</strong>
+        <code>best_of_n</code> costs 2.9&times; per solve because it always draws all three
+        samples whether or not the first worked. The agent costs the same as the baseline
+        &mdash; the loop only spends when it fails. That gap is far outside the noise floor.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <div class="eyebrow">Calibration history</div>
+      <h2>Four runs, three misses</h2>
+      <p style="color:var(--ink-2)">
+        Measuring a correction loop needs a model that fails sometimes but not always.
+        Finding that band turned out to be the hardest part of the project. Every
+        attempt is kept, including the unflattering ones &mdash; they are the record of how
+        the band was located.
+      </p>
+    </div>
+
+    <div class="runs">
+      <div class="run">
+        <div class="run-n">RUN 1</div>
+        <div class="run-body">
+          <div class="run-title">
+            <span class="run-model">llama-3.1-8b-instant</span>
+            <span class="run-verdict">too weak &mdash; measured nothing</span>
+          </div>
+          <div class="bars">
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s1)"></span>single_shot</div><div class="track"><div class="fill" style="width:8.3%;background:var(--s1)"></div></div><div class="bar-val">1/12</div></div>
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s2)"></span>best_of_n</div><div class="track"><div class="fill" style="width:8.3%;background:var(--s2)"></div></div><div class="bar-val">1/12</div></div>
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s3)"></span>self_correct</div><div class="track"><div class="fill" style="width:0%;background:var(--s3)"></div></div><div class="bar-val">0/12</div></div>
+          </div>
+          <p style="font-size:.86rem;color:var(--muted)">
+            With the oracle ceiling itself at 1/12, no method could have scored higher.
+            An eval whose ceiling sits on its floor has no discriminating power.
+          </p>
+        </div>
+      </div>
+
+      <div class="run">
+        <div class="run-n">RUN 2</div>
+        <div class="run-body">
+          <div class="run-title">
+            <span class="run-model">llama-3.3-70b-versatile</span>
+            <span class="run-verdict" style="color:var(--muted)">measurable &mdash; then retired by the provider</span>
+          </div>
+          <div class="bars">
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s1)"></span>single_shot</div><div class="track"><div class="fill" style="width:25%;background:var(--s1)"></div></div><div class="bar-val">3/12</div></div>
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s2)"></span>best_of_n</div><div class="track"><div class="fill" style="width:33.3%;background:var(--s2)"></div></div><div class="bar-val">4/12</div></div>
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s3)"></span>self_correct</div><div class="track"><div class="fill" style="width:25%;background:var(--s3)"></div></div><div class="bar-val">3/12</div></div>
+          </div>
+          <p style="font-size:.86rem;color:var(--muted)">
+            The only run in a measurable band. The loop netted zero &mdash; fixing one problem,
+            breaking another. Both Llama model IDs were retired mid-project, so this run
+            can never be reproduced or extended.
+          </p>
+        </div>
+      </div>
+
+      <div class="run">
+        <div class="run-n">RUN 3</div>
+        <div class="run-body">
+          <div class="run-title">
+            <span class="run-model">openai/gpt-oss-120b</span>
+            <span class="run-verdict">too strong &mdash; ceiling-limited</span>
+          </div>
+          <div class="bars">
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s1)"></span>single_shot</div><div class="track"><div class="fill" style="width:86.7%;background:var(--s1)"></div></div><div class="bar-val">26/30</div></div>
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s2)"></span>best_of_n</div><div class="track"><div class="fill" style="width:93.3%;background:var(--s2)"></div></div><div class="bar-val">28/30</div></div>
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s3)"></span>self_correct</div><div class="track"><div class="fill" style="width:100%;background:var(--s3)"></div></div><div class="bar-val">30/30</div></div>
+          </div>
+          <p style="font-size:.86rem;color:var(--muted)">
+            Only four problems of headroom left. The decomposition above shows why the
+            apparent +4 is really +1.
+          </p>
+        </div>
+      </div>
+
+      <div class="run">
+        <div class="run-n">RUN 4</div>
+        <div class="run-body">
+          <div class="run-title">
+            <span class="run-model">openai/gpt-oss-120b &mdash; 10 harder problems</span>
+            <span class="run-verdict">still too easy</span>
+          </div>
+          <div class="bars">
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s1)"></span>single_shot</div><div class="track"><div class="fill" style="width:81.8%;background:var(--s1)"></div></div><div class="bar-val">9/11</div></div>
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s2)"></span>best_of_n</div><div class="track"><div class="fill" style="width:90.9%;background:var(--s2)"></div></div><div class="bar-val">10/11</div></div>
+            <div class="bar-row"><div class="bar-name"><span class="swatch" style="background:var(--s3)"></span>self_correct</div><div class="track"><div class="fill" style="width:81.8%;background:var(--s3)"></div></div><div class="bar-val">9/11</div></div>
+          </div>
+          <p style="font-size:.86rem;color:var(--muted)">
+            Ten problems written specifically to defeat this model moved the baseline from
+            86.7% to 81.8%. Only two discriminated.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span class="legend-item"><span class="swatch" style="background:var(--s1)"></span>single_shot &mdash; pass@1 floor</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--s2)"></span>best_of_n &mdash; pass@3 oracle ceiling</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--s3)"></span>self_correct &mdash; the agent</span>
+    </div>
+
+    <div class="col" style="margin-top:34px">
+      <div class="callout">
+        <div class="eyebrow">What the two hard problems had in common</div>
+        <p style="font-size:.9rem;color:var(--ink-2)">
+          The obvious answer looks correct, is silently accepted, and silently does nothing.
+          Asked to serialise a subclass through a base-typed field, the model wrote
+          <code>ConfigDict(serialize_as_any=True)</code>. That is not a <code>ConfigDict</code> key
+          &mdash; but <code>ConfigDict</code> is a <code>TypedDict</code>, so it is accepted at runtime,
+          stored, and has no effect. No error, no warning; the subclass field simply
+          vanishes from the output.
+        </p>
+        <p style="font-size:.9rem;color:var(--ink-2)">
+          Problems asking &ldquo;which v2 name replaced this v1 name?&rdquo; are a lookup this model
+          performs reliably. Problems where a plausible construct misbehaves in silence are
+          the ones with discriminating power.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <div class="eyebrow">Architecture</div>
+      <h2>Five nodes, one bounded loop</h2>
+    </div>
+
+    <div class="graph">
+<pre>test_gen ──▶ generate ──▶ static_check ──pass──▶ execute ──pass──▶ END
+                 ▲              │                    │
+                 │          fail│               fail │
+                 │              ▼                    ▼
+                 └────────── reflect ◀───────────────┘
+                        (only while attempts remain)</pre>
+    </div>
+
+    <div class="grid2" style="margin-top:26px">
+      <div class="gcard">
+        <h3>Termination is proven, not asserted</h3>
+        <p>
+          Node-level guards compare <code>attempt_number</code> to <code>max_attempts</code> and write
+          a terminal status; routers only read it. A test runs the graph with a stub model
+          that <em>never</em> succeeds and checks the bound holds at 1, 2, and 3 attempts on
+          both failure paths.
+        </p>
+      </div>
+      <div class="gcard">
+        <h3>Generated code never touches exec()</h3>
+        <p>
+          Every solution runs under <code>pytest</code> in a subprocess with a wall-clock timeout,
+          plus POSIX memory and CPU ceilings where available. The sandbox proves itself
+          healthy on known-good code before the eval spends anything.
+        </p>
+      </div>
+      <div class="gcard">
+        <h3>The eval set validates itself</h3>
+        <p>
+          All 40 problems ship a hand-written reference solution that must pass its own
+          tests and clear the static gate. No prompt may leak a v2 API name &mdash; otherwise
+          the eval would measure instruction-following, not knowledge.
+        </p>
+      </div>
+      <div class="gcard">
+        <h3>Preflight before budget</h3>
+        <p>
+          Groq retired both Llama models mid-project. Two full runs recorded 90/90 errored
+          rows and printed <span class="mono">0/30</span> for every method &mdash; which reads exactly
+          like catastrophic model failure. A one-call preflight now aborts on a dead
+          endpoint before anything is spent.
+        </p>
+      </div>
+      <div class="gcard">
+        <h3>Raw counts, never bare percentages</h3>
+        <p>
+          Every rate ships with the counts behind it. At n = 30 one problem is 3.3 points,
+          and the denominator is the most important part of the number.
+        </p>
+      </div>
+      <div class="gcard">
+        <h3>Errors count as failures</h3>
+        <p>
+          A crashed row is recorded, never skipped &mdash; a dropped row silently shrinks the
+          denominator and inflates every rate. The analyser refuses to print a summary
+          when there is no data behind it.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap col stack">
+    <div class="sec-head">
+      <div class="eyebrow">Limitations</div>
+      <h2>What these numbers cannot support</h2>
+    </div>
+    <div class="stack-tight">
+      <p style="color:var(--ink-2)">&mdash;&nbsp; <strong>n = 30, noise floor &asymp; 3 problems.</strong> Only differences larger than that are interpretable. The loop&rsquo;s +1 is not.</p>
+      <p style="color:var(--ink-2)">&mdash;&nbsp; <strong>Ceiling-limited.</strong> At 86.7% baseline there is little room to improve, so this run cannot strongly support or refute the hypothesis either way.</p>
+      <p style="color:var(--ink-2)">&mdash;&nbsp; <strong>Single run per configuration.</strong> No seed variance, no repeated trials. Point estimates only.</p>
+      <p style="color:var(--ink-2)">&mdash;&nbsp; <strong>Runs 1 and 2 are unreproducible.</strong> Both model IDs were retired by the provider.</p>
+      <p style="color:var(--ink-2)">&mdash;&nbsp; <strong>POSIX sandbox limits are unverified</strong> on the machine this was built on. The tests exist and are skipped on Windows, so the memory and CPU ceilings remain a design claim rather than a measured one.</p>
+      <p style="color:var(--ink-2)">&mdash;&nbsp; <strong>Pydantic v2 is close to exhausted</strong> as a discriminating domain at this model tier. That is a property of the eval, not a result about self-correction.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <div>Python 3.13 &middot; LangGraph &middot; Pydantic v2 &middot; pytest &middot; pyflakes &middot; pandas</div>
+  <div>Every figure on this page is read from a committed run file. None is estimated.</div>
+</footer>
+
+</body>
+</html>
