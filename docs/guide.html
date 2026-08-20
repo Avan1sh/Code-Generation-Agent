@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="A deep study guide to selfcorrect-agent: what every file does, how the measurement is built, the trade-offs, the bug log, and the questions to expect.">
+<title>Self-Correction Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&display=swap">
+
+<style>
+:root{
+  --paper:#EDF0F4; --surface:#FBFCFD; --surface-2:#F3F6F9;
+  --ink:#121820; --ink-2:#3A4553; --muted:#5B6675;
+  --rule:#D2D9E2; --rule-strong:#B6C1CE;
+  --s1:#3D6BA8; --s2:#B07D2B; --s3:#008573;
+  --warn:#A8492E; --warn-bg:#F6E7E1; --ok-bg:#E4F1EE; --band:#DDE3EB;
+  --shadow:0 1px 2px rgba(18,24,32,.05),0 8px 24px -18px rgba(18,24,32,.25);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0D1219; --surface:#161C25; --surface-2:#1C242F;
+  --ink:#E6EBF1; --ink-2:#BAC5D2; --muted:#8C99A9;
+  --rule:#28323F; --rule-strong:#3A4756;
+  --s1:#5286C7; --s2:#BC8730; --s3:#279884;
+  --warn:#D98A62; --warn-bg:#2A1D18; --ok-bg:#14261F; --band:#232C38;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -20px rgba(0,0,0,.8);
+}}
+:root[data-theme="dark"]{
+  --paper:#0D1219; --surface:#161C25; --surface-2:#1C242F;
+  --ink:#E6EBF1; --ink-2:#BAC5D2; --muted:#8C99A9;
+  --rule:#28323F; --rule-strong:#3A4756;
+  --s1:#5286C7; --s2:#BC8730; --s3:#279884;
+  --warn:#D98A62; --warn-bg:#2A1D18; --ok-bg:#14261F; --band:#232C38;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -20px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:16px; line-height:1.62; -webkit-font-smoothing:antialiased;
+}
+.shell{max-width:1180px;margin:0 auto;padding:0 26px}
+.cols{display:grid;grid-template-columns:210px minmax(0,1fr);gap:52px;align-items:start}
+
+h1,h2,h3,h4{font-family:Newsreader,Georgia,"Times New Roman",serif;font-weight:500;text-wrap:balance;margin:0}
+h1{font-size:clamp(2.3rem,5vw,3.4rem);line-height:1.04;letter-spacing:-.018em}
+h2{font-size:clamp(1.5rem,3vw,2rem);line-height:1.14;letter-spacing:-.012em}
+h3{font-size:1.16rem;line-height:1.28;font-weight:600;font-family:"IBM Plex Sans",sans-serif}
+h4{font-size:.97rem;font-weight:600;font-family:"IBM Plex Sans",sans-serif}
+p{margin:0}
+strong{font-weight:600;color:var(--ink)}
+em{font-style:italic}
+
+.mono,code,pre{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+code{font-size:.87em;background:var(--surface-2);border:1px solid var(--rule);border-radius:3px;padding:.06em .32em;color:var(--ink-2)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.69rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+a{color:var(--ink);text-decoration-color:var(--rule-strong);text-underline-offset:3px}
+a:hover{text-decoration-color:currentColor}
+a:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+
+/* ---- header ---- */
+header{border-bottom:1px solid var(--rule);background:var(--surface)}
+.head{padding:62px 0 46px;display:flex;flex-direction:column;gap:20px;max-width:720px}
+.lede{font-size:1.1rem;color:var(--ink-2)}
+.linkrow{display:flex;flex-wrap:wrap;gap:9px;padding-top:4px}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:.73rem;border:1px solid var(--rule-strong);
+  border-radius:2px;padding:5px 10px;color:var(--ink-2);background:var(--surface-2);text-decoration:none}
+.chip:hover{background:var(--band);color:var(--ink)}
+
+/* ---- nav ---- */
+nav{position:sticky;top:22px;display:flex;flex-direction:column;gap:3px;padding-top:44px}
+nav a{font-size:.83rem;color:var(--muted);text-decoration:none;padding:4px 0;border-left:2px solid transparent;padding-left:11px;line-height:1.35}
+nav a:hover{color:var(--ink);border-left-color:var(--rule-strong)}
+nav .navlabel{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);padding-left:11px;margin-bottom:6px}
+
+main{padding-top:44px;padding-bottom:80px;min-width:0}
+section{padding:34px 0;border-bottom:1px solid var(--rule)}
+section:last-child{border-bottom:0}
+.sec-head{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
+.stack{display:flex;flex-direction:column;gap:15px}
+.prose{max-width:66ch;color:var(--ink-2)}
+.prose strong{color:var(--ink)}
+
+/* ---- cards ---- */
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:20px 22px;
+  display:flex;flex-direction:column;gap:10px}
+.cards{display:flex;flex-direction:column;gap:12px}
+.card h4{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.card .path{font-family:"IBM Plex Mono",monospace;font-size:.82rem;color:var(--s1);font-weight:500}
+.card .loc{font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--muted)}
+.card p{font-size:.89rem;color:var(--ink-2)}
+.why{border-left:2px solid var(--s3);padding-left:13px;font-size:.87rem;color:var(--ink-2)}
+.why b{color:var(--s3);font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.1em;
+  text-transform:uppercase;display:block;margin-bottom:3px;font-weight:600}
+
+/* ---- tables ---- */
+.scroller{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.86rem;min-width:480px}
+th,td{text-align:left;padding:11px 15px;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);background:var(--surface-2);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+.good{color:var(--s3);font-weight:600}
+.bad{color:var(--warn);font-weight:600}
+
+/* ---- code ---- */
+pre{margin:0;background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+  padding:16px 18px;overflow-x:auto;font-size:.79rem;line-height:1.68;color:var(--ink-2)}
+.diagram{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:22px;overflow-x:auto}
+.diagram pre{border:0;padding:0;background:none;font-size:.76rem;line-height:1.75;white-space:pre}
+
+/* ---- callouts ---- */
+.note{border-left:2px solid var(--s2);background:var(--surface);padding:15px 19px;
+  display:flex;flex-direction:column;gap:8px;border-radius:0 3px 3px 0}
+.note .eyebrow{color:var(--s2)}
+.note p{font-size:.88rem;color:var(--ink-2)}
+.note.alert{border-left-color:var(--warn);background:var(--warn-bg)}
+.note.alert .eyebrow{color:var(--warn)}
+
+/* ---- bug entries: a real chronology, so numbering carries meaning ---- */
+.bug{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:20px 22px}
+.bug-n{font-family:"IBM Plex Mono",monospace;font-size:1.5rem;color:var(--rule-strong);
+  line-height:1;padding-top:2px;font-variant-numeric:tabular-nums}
+.bug-body{display:flex;flex-direction:column;gap:10px;min-width:0}
+.bug-body h4{color:var(--ink)}
+.bug-body p{font-size:.88rem;color:var(--ink-2)}
+.lesson{font-size:.86rem;color:var(--ink);background:var(--surface-2);border-radius:3px;padding:10px 13px}
+.lesson b{font-family:"IBM Plex Mono",monospace;font-size:.67rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);display:block;margin-bottom:3px}
+
+/* ---- Q&A ---- */
+details{background:var(--surface);border:1px solid var(--rule);border-radius:4px;margin-bottom:9px}
+summary{padding:14px 18px;cursor:pointer;font-weight:600;font-size:.93rem;color:var(--ink);list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+";font-family:"IBM Plex Mono",monospace;color:var(--s1);margin-right:11px;font-weight:600}
+details[open] summary::before{content:"\2212"}
+details[open] summary{border-bottom:1px solid var(--rule)}
+.answer{padding:16px 18px;display:flex;flex-direction:column;gap:11px;font-size:.89rem;color:var(--ink-2)}
+.answer strong{color:var(--ink)}
+.cite{font-family:"IBM Plex Mono",monospace;font-size:.76rem;color:var(--muted);
+  border-top:1px dashed var(--rule);padding-top:9px}
+
+footer{padding:36px 0 70px;color:var(--muted);font-size:.83rem;border-top:1px solid var(--rule)}
+
+@media (max-width:900px){
+  .cols{grid-template-columns:1fr;gap:0}
+  nav{display:none}
+  main{padding-top:26px}
+}
+@media (max-width:560px){
+  .bug{grid-template-columns:1fr;gap:10px}
+  .head{padding:44px 0 34px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="shell head">
+    <div class="eyebrow">Study guide</div>
+    <h1>How selfcorrect-agent works</h1>
+    <p class="lede">
+      A LangGraph agent that writes Pydantic v2 code, catches its own failures, and retries
+      with a diagnosis. This guide covers what every file does, why each design choice was
+      made, how the measurement is built, and the bugs that shaped it.
+    </p>
+    <div class="linkrow">
+      <a class="chip" href="https://github.com/Avan1sh/Code-Generation-Agent">Repo</a>
+      <a class="chip" href="./">Results</a>
+      <a class="chip" href="try.html">Static gate</a>
+      <a class="chip" href="https://selfcorrect-agent-demo.onrender.com">Live demo</a>
+    </div>
+  </div>
+</header>
+
+<div class="shell cols">
+  <nav>
+    <div class="navlabel">Contents</div>
+    <a href="#thesis">The thesis</a>
+    <a href="#model">Mental model</a>
+    <a href="#files">File map</a>
+    <a href="#state">State and typing</a>
+    <a href="#termination">Termination proof</a>
+    <a href="#sandbox">The sandbox</a>
+    <a href="#measure">Measurement design</a>
+    <a href="#results">What was found</a>
+    <a href="#tradeoffs">Trade-offs</a>
+    <a href="#bugs">Bug log</a>
+    <a href="#drill">Interview drill</a>
+  </nav>
+
+  <main>
+
+  <section id="thesis">
+    <div class="sec-head">
+      <div class="eyebrow">Start here</div>
+      <h2>The one question this project answers</h2>
+    </div>
+    <div class="stack prose">
+      <p>
+        When a model writes bad code you have two cheap options: run it again and hope
+        (<strong>resampling</strong>), or show it the error and ask it to reason about the fix
+        (<strong>reflection</strong>). Reflection costs more, one extra call per failed attempt.
+        The project exists to find out whether that extra spend buys anything.
+      </p>
+      <p>
+        That is why there are three methods, not one. <code>single_shot</code> is the floor.
+        <code>best_of_n</code> is a deliberately unfair oracle ceiling. The agent sits between
+        them, and its position is the answer.
+      </p>
+      <div class="note">
+        <div class="eyebrow">The finding, stated honestly</div>
+        <p>
+          On the 30-problem run the agent scored <strong>30/30</strong> against a
+          <strong>26/30</strong> baseline. Decomposed, only <strong>+1 of those 4</strong> came
+          from the correction step. The other three were temperature-0 sampling variance and one
+          rate-limited baseline call. The harness's own noise floor measures about
+          <strong>3 problems</strong>, so +1 is not interpretable. The defensible claim is that
+          the loop did not hurt, not that it helped.
+        </p>
+      </div>
+      <p>
+        Everything below exists to make that sentence survive questioning.
+      </p>
+    </div>
+  </section>
+
+  <section id="model">
+    <div class="sec-head">
+      <div class="eyebrow">Mental model</div>
+      <h2>Five nodes, one bounded loop</h2>
+    </div>
+    <div class="stack">
+      <div class="diagram">
+<pre>test_gen ──▶ generate ──▶ static_check ──pass──▶ execute ──pass──▶ END
+                 ▲              │                    │
+                 │          fail│               fail │
+                 │              ▼                    ▼
+                 └────────── reflect ◀───────────────┘
+                        (only while attempts remain)</pre>
+      </div>
+      <p class="prose">
+        Read it as a pipeline with one cycle. Work flows left to right; failure sends it back
+        through <code>reflect</code>, which is the only node that exists to explain rather than
+        produce.
+      </p>
+
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Node</th><th>LLM?</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td class="num">test_gen</td><td>rarely</td><td>Loads hand-written tests from disk. Only calls the model when a prompt has no canonical tests, which is the ad-hoc path.</td></tr>
+            <tr><td class="num">generate</td><td>yes</td><td>Produces code. On retry it carries the prior code, the concrete failure evidence, and the diagnosis.</td></tr>
+            <tr><td class="num">static_check</td><td>no</td><td><code>ast</code> parse, pyflakes, and 8 regex rules for v1 anti-patterns. Free, deterministic, runs before any sandbox spend.</td></tr>
+            <tr><td class="num">execute</td><td>no</td><td>Runs the tests under pytest in a resource-limited subprocess.</td></tr>
+            <tr><td class="num">reflect</td><td>yes</td><td>One call producing a root cause and a fix direction. Explicitly forbidden from writing code.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <div class="why"><b>Why test_gen runs once, outside the loop</b>
+            Regenerating tests per attempt would let the success criterion drift under a failing
+            solution. The target has to hold still or the measurement means nothing.</div>
+        </div>
+        <div class="card">
+          <div class="why"><b>Why reflect may not emit code</b>
+            If it wrote code it would just be a second generator, and the eval could no longer
+            isolate whether the reflection step contributes anything. Separating "what went wrong"
+            from "write it again" is the entire hypothesis under test.</div>
+        </div>
+        <div class="card">
+          <div class="why"><b>Why static_check sits before execute</b>
+            It is free and deterministic. Rejecting v1 syntax here means never spending a sandbox
+            run on code already known to be wrong, and it hands the reflector precise evidence
+            instead of a stack trace.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="files">
+    <div class="sec-head">
+      <div class="eyebrow">File map</div>
+      <h2>What every file is for</h2>
+      <p class="prose">Line counts are the real ones. Small files are a signal, not an accident:
+      the load-bearing logic is concentrated in <code>sandbox.py</code>, <code>run_eval.py</code>,
+      and <code>analyze.py</code>.</p>
+    </div>
+
+    <div class="stack">
+      <h3>agent/ &mdash; the graph</h3>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>File</th><th>Lines</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td class="num">state.py</td><td class="num">95</td><td>Every typed model: <code>Problem</code>, <code>StaticIssue</code>, <code>StaticCheckResult</code>, <code>ExecutionResult</code>, <code>AttemptRecord</code>, <code>AgentState</code>. No dicts with string keys anywhere.</td></tr>
+            <tr><td class="num">graph.py</td><td class="num">98</td><td>Wires the five nodes, the two conditional edges, and the recursion backstop.</td></tr>
+            <tr><td class="num">sandbox.py</td><td class="num">200</td><td>Subprocess execution, POSIX rlimits, the startup health probe. The safety-critical file.</td></tr>
+            <tr><td class="num">llm.py</td><td class="num">186</td><td>Provider factory, token-tracking wrapper, per-request key scoping, model preflight.</td></tr>
+            <tr><td class="num">usage.py</td><td class="num">80</td><td>Scoped token accounting. Records missing metadata as missing, never as zero.</td></tr>
+            <tr><td class="num">nodes/generator.py</td><td class="num">108</td><td>Two prompts: a zero-shot one and a retry one carrying evidence plus diagnosis.</td></tr>
+            <tr><td class="num">nodes/static_check.py</td><td class="num">123</td><td>The 8 v1 rules, pyflakes integration, and the blocking policy.</td></tr>
+            <tr><td class="num">nodes/executor.py</td><td class="num">38</td><td>Calls the sandbox, commits the attempt record, decides the terminal status.</td></tr>
+            <tr><td class="num">nodes/reflector.py</td><td class="num">78</td><td>One diagnosis call, evidence truncated to the useful tail.</td></tr>
+            <tr><td class="num">nodes/test_generator.py</td><td class="num">53</td><td>Canonical tests from disk, or LLM-written for ad-hoc prompts only.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:12px">baselines/ &mdash; the comparisons</h3>
+      <div class="cards">
+        <div class="card">
+          <h4><span class="path">single_shot.py</span><span class="loc">52 lines</span></h4>
+          <p>One generation, one test run, no correction. The number the agent must beat.</p>
+          <div class="why"><b>The critical detail</b>
+            It imports <code>SYSTEM_PROMPT</code> from the generator and uses temperature 0, so it
+            is prompt-identical to the agent's attempt 1. If it were not, any measured gap would
+            confound "the loop helped" with "the retry prompt was just better".</div>
+        </div>
+        <div class="card">
+          <h4><span class="path">best_of_n.py</span><span class="loc">74 lines</span></h4>
+          <p>N independent samples at temperature 0.8. Passes if any sample passes.</p>
+          <div class="why"><b>Why an unfair baseline is on purpose</b>
+            Reporting pass@N requires knowing which sample passed, which at inference time means
+            already having the tests. It is not deployable. It is included because it is
+            compute-matched, which makes the real question answerable: at equal budget, does
+            directed correction beat undirected resampling? It is also what tells you when the
+            eval itself has stopped working.</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:12px">eval/ &mdash; the measurement</h3>
+      <div class="cards">
+        <div class="card">
+          <h4><span class="path">run_eval.py</span><span class="loc">219 lines</span></h4>
+          <p>Runs all three methods over the problem set in one process and writes one JSON line
+          per (problem, method). It aggregates nothing.</p>
+          <div class="why"><b>Why measurement and analysis are separate files</b>
+            The raw record survives a wrong analysis, and numbers can be recomputed without
+            re-spending API budget. It also means a bug in the summary can never quietly corrupt
+            the evidence.</div>
+        </div>
+        <div class="card">
+          <h4><span class="path">analyze.py</span><span class="loc">189 lines</span></h4>
+          <p>Turns a run file into counts: headline, paired per-problem deltas, attempt
+          distribution, per-category breakdown, token cost.</p>
+          <div class="why"><b>Three rules it enforces in code</b>
+            Raw counts always accompany rates. Errored rows count as failures rather than being
+            dropped, because a dropped row shrinks the denominator and inflates every rate. And it
+            refuses to print a summary at all when there is no data behind it.</div>
+        </div>
+        <div class="card">
+          <h4><span class="path">partial_credit.py</span><span class="loc">153 lines</span></h4>
+          <p>Re-executes the solutions already stored in a run file and counts individual
+          assertions. Zero API cost.</p>
+          <div class="why"><b>Why it exists</b>
+            At n=30 a binary outcome can only express differences of 3.3 points. The 185
+            assertions underneath were already paid for, so the finer signal just needs reading
+            out. This is also the tool that caught a bug in the eval set itself.</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:12px">problems/ &mdash; the eval set</h3>
+      <p class="prose">40 problems, 185 assertions, 7 easy / 12 medium / 21 hard. Each directory holds
+      four files:</p>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td class="num">prompt.md</td><td>The only file the model ever sees.</td></tr>
+            <tr><td class="num">tests.py</td><td>Hand-written ground truth. Never LLM-generated.</td></tr>
+            <tr><td class="num">meta.json</td><td>id, category, difficulty, and the specific v1 trap being probed.</td></tr>
+            <tr><td class="num">reference.py</td><td>A known-good v2 solution. Never shown to the model.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <div class="eyebrow">The eval set validates itself</div>
+        <p>
+          <code>tests/test_problem_set.py</code> asserts three things for all 40 problems, with no
+          API key: the reference solution passes its own tests in the real sandbox; the reference
+          passes the static gate, which proves the v1 detector has no false positives that would
+          reject correct code; and no prompt leaks a v2 API name, which would turn the eval into an
+          instruction-following test instead of a knowledge test.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="state">
+    <div class="sec-head">
+      <div class="eyebrow">state.py</div>
+      <h2>Why the state is typed, and one subtlety</h2>
+    </div>
+    <div class="stack">
+      <p class="prose">
+        <code>AgentState</code> is a Pydantic v2 model, not a TypedDict and certainly not a bare
+        dict. Every node transition is runtime-validated. It is also thematically consistent: the
+        agent's own state is a v2 model in a project about v2 correctness.
+      </p>
+      <pre>class AgentState(BaseModel):
+    problem: Problem
+    max_attempts: int = 3
+    attempt_number: int = 0
+
+    generated_code: str | None = None
+    test_code: str | None = None
+    static_check_result: StaticCheckResult | None = None
+    execution_result: ExecutionResult | None = None
+    reflection: str | None = None
+
+    history: Annotated[list[AttemptRecord], operator.add] = ...
+    status: Status = "in_progress"</pre>
+      <div class="cards">
+        <div class="card">
+          <div class="why"><b>The reducer on history</b>
+            <code>Annotated[list[AttemptRecord], operator.add]</code>. LangGraph merges each node's
+            partial return into state, so without an explicit reducer a later node's return would
+            clobber history instead of extending it.</div>
+        </div>
+        <div class="card">
+          <div class="why"><b>Who commits a history record</b>
+            Exactly one node per attempt. If the static gate fails, <code>static_check</code> owns
+            the record and <code>execution</code> stays <code>None</code>. If it passes,
+            <code>execute</code> owns it. That is how the analysis distinguishes a static rejection
+            from a test failure, and it is why neither node double-counts.</div>
+        </div>
+        <div class="card">
+          <div class="why"><b>What reflection means on a record</b>
+            It is the diagnosis that <em>guided</em> this attempt, not a diagnosis of it. That
+            lets analysis ask "did this diagnosis lead to a fix?" by reading the next record.</div>
+        </div>
+        <div class="card">
+          <div class="why"><b>What is deliberately not in state</b>
+            A visitor's API key. State is serialised into history records and run files, so a
+            credential placed there would leak into logs and saved output. The hosted demo carries
+            it in a <code>ContextVar</code> instead.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="termination">
+    <div class="sec-head">
+      <div class="eyebrow">graph.py</div>
+      <h2>How the loop is proven to stop</h2>
+      <p class="prose">This is the claim most worth being able to defend, so it rests on three
+      things in order of importance.</p>
+    </div>
+    <div class="stack">
+      <div class="cards">
+        <div class="card">
+          <h4>1. Node-level guards</h4>
+          <p><code>static_check_node</code> and <code>executor_node</code> each compare
+          <code>attempt_number >= max_attempts</code> themselves and write a terminal status. The
+          conditional edges only <em>read</em> that status. Routers never decide termination.</p>
+        </div>
+        <div class="card">
+          <h4>2. A monotonic counter</h4>
+          <p><code>attempt_number</code> is incremented by <code>generate</code> on every pass and
+          is never decremented anywhere, so the guard in (1) is guaranteed to fire within
+          <code>max_attempts</code> generations regardless of what the model outputs.</p>
+        </div>
+        <div class="card">
+          <h4>3. recursion_limit as a backstop only</h4>
+          <p>Set to <code>max_attempts * 4 + 10</code>, above the worst case, so hitting it means a
+          wiring bug. It is explicitly <em>not</em> the guarantee: it raises
+          <code>GraphRecursionError</code>, a crash, rather than producing a clean terminal state.</p>
+        </div>
+      </div>
+      <div class="note">
+        <div class="eyebrow">This is tested, not asserted</div>
+        <p>
+          <code>tests/test_graph_termination.py</code> runs the real graph with a stub LLM that
+          <strong>always</strong> emits broken code, the worst case of a model that never
+          self-corrects. It checks the bound holds at max_attempts 1, 2 and 3, on both the
+          static-failure and test-failure paths, that a success short-circuits immediately, and
+          that no reflection call is paid for after the final attempt. No API key required.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="sandbox">
+    <div class="sec-head">
+      <div class="eyebrow">sandbox.py</div>
+      <h2>Running untrusted code</h2>
+    </div>
+    <div class="stack">
+      <p class="prose">
+        Generated code is <strong>never</strong> passed to <code>exec()</code> or
+        <code>eval()</code>, not even in a throwaway check. It is written to a temporary directory
+        and run under pytest in a subprocess.
+      </p>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Control</th><th>Mechanism</th><th>Where it applies</th></tr></thead>
+          <tbody>
+            <tr><td>Wall-clock timeout</td><td class="num">subprocess timeout</td><td class="good">every platform</td></tr>
+            <tr><td>Address space</td><td class="num">RLIMIT_AS</td><td>POSIX only</td></tr>
+            <tr><td>CPU time</td><td class="num">RLIMIT_CPU</td><td>POSIX only</td></tr>
+            <tr><td>Process count</td><td class="num">RLIMIT_NPROC</td><td>POSIX only</td></tr>
+            <tr><td>Network</td><td class="bad">none</td><td class="bad">nowhere</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <div class="why"><b>Why the memory ceiling is generous, not tight</b>
+            <code>RLIMIT_AS</code> caps <em>virtual address space</em>, not resident memory. CPython
+            plus pydantic-core reserve far more address space than they make resident, so a ceiling
+            tuned to "how much should a solution need" rejects perfectly good solutions. It exists
+            to stop unbounded allocation, not to enforce a budget.</div>
+        </div>
+        <div class="card">
+          <div class="why"><b>Why it must sit below the container budget</b>
+            On a 512MB instance a 2048MB ceiling protects nothing: the child grows until the
+            <em>container</em> is killed. <code>SANDBOX_MEMORY_MB</code> is set to 300 in
+            production for exactly this reason.</div>
+        </div>
+        <div class="card">
+          <div class="why"><b>Why the timeout is configurable</b>
+            10s suits a developer machine where the probe takes 1.7s. On shared hosting the same
+            probe takes 17.1s, and valid solutions then report <code>timed_out</code>, which reads
+            as the model writing infinite loops. Hardware-dependent values must be settable per
+            environment.</div>
+        </div>
+        <div class="card">
+          <div class="why"><b>Why concurrency is capped at one run</b>
+            <code>preexec_fn</code> runs between fork and exec, and forking from a multi-threaded
+            process to set rlimits is the classic deadlock. FastAPI runs sync endpoints in a
+            threadpool, so a semaphore keeps the fork quiet.</div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="eyebrow">verify_sandbox_health, the pattern worth stealing</div>
+        <p>
+          Before the eval spends anything, known-good pydantic code is run through the sandbox under
+          the configured limits. If ceilings are too tight for the interpreter itself, every problem
+          fails, the eval reports 0 across all three methods, and it looks like catastrophic model
+          failure. The check turns that into a loud, self-describing error. The same idea produced
+          <code>verify_llm_available()</code> after a retired model ID caused exactly that outcome.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="measure">
+    <div class="sec-head">
+      <div class="eyebrow">Methodology</div>
+      <h2>How the measurement is built</h2>
+      <p class="prose">This is the part that matters most, and the part most likely to be probed.</p>
+    </div>
+    <div class="stack">
+      <div class="cards">
+        <div class="card">
+          <h4>One process, one model snapshot</h4>
+          <p>All three methods run in the same invocation against the same problem set. A baseline
+          measured in a different run against a different model snapshot is not a baseline.
+          Provider-side changes alone move the number, which stopped being hypothetical when Groq
+          retired two model IDs mid-project.</p>
+        </div>
+        <div class="card">
+          <h4>The oracle is what detects a broken eval</h4>
+          <p>If <code>best_of_n</code> sits at the floor, no method could have scored higher and the
+          eval has no discriminating power. That is how Run 1 was identified as measuring nothing.
+          Without an oracle a null result is a shrug; with one it is a diagnosis.</p>
+        </div>
+        <div class="card">
+          <h4>Paired deltas, not just aggregates</h4>
+          <p>A net +0 can hide the loop fixing one problem and breaking another. That is exactly
+          what happened in Run 2, so <code>analyze.py</code> prints "fixed by the loop" and "broken
+          by the loop" separately.</p>
+        </div>
+        <div class="card">
+          <h4>The noise floor is measured, not assumed</h4>
+          <p><code>single_shot</code> and the agent's attempt 1 send an identical prompt to an
+          identical model at temperature 0. They still disagreed on 3 of 30 problems, because
+          provider-side batching makes temperature 0 non-deterministic. Any A/B difference smaller
+          than about 3 problems at this n sits inside the harness's own instability.</p>
+        </div>
+        <div class="card">
+          <h4>Cost is measured in tokens, not calls</h4>
+          <p>A reflection call carries the failing code plus a pytest traceback, so it is far more
+          expensive than a first-attempt generation. "54 calls" hides that. The headline cost figure
+          is <strong>tokens per solved problem</strong>, because a method can look cheap in total
+          while being expensive per unit of work delivered.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="results">
+    <div class="sec-head">
+      <div class="eyebrow">Four runs</div>
+      <h2>What was actually found</h2>
+    </div>
+    <div class="stack">
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Run</th><th>Model</th><th>n</th><th>single_shot</th><th>best_of_n</th><th>self_correct</th><th>Verdict</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td class="num">llama-3.1-8b</td><td class="num">12</td><td class="num">1/12</td><td class="num">1/12</td><td class="num">0/12</td><td class="bad">too weak, measured nothing</td></tr>
+            <tr><td class="num">2</td><td class="num">llama-3.3-70b</td><td class="num">12</td><td class="num">3/12</td><td class="num">4/12</td><td class="num">3/12</td><td>the only measurable band</td></tr>
+            <tr><td class="num">3</td><td class="num">gpt-oss-120b</td><td class="num">30</td><td class="num">26/30</td><td class="num">28/30</td><td class="num">30/30</td><td class="bad">too strong, ceiling-limited</td></tr>
+            <tr><td class="num">4</td><td class="num">gpt-oss-120b</td><td class="num">11</td><td class="num">9/11</td><td class="num">10/11</td><td class="num">9/11</td><td class="bad">harder problems, still too easy</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose">
+        Three calibration misses out of four attempts. All four runs are kept, including the two
+        that measured nothing, because they are the record of how the measurable band was located.
+        Deleting them would leave the model choice looking arbitrary.
+      </p>
+
+      <h3 style="margin-top:10px">The Run 3 decomposition</h3>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Problem the baseline missed</th><th>How the agent got it</th><th>The loop?</th></tr></thead>
+          <tbody>
+            <tr><td class="num">pyd_011_type_adapter</td><td>attempt 1, baseline hit a 429 rate limit</td><td class="bad">no, infrastructure</td></tr>
+            <tr><td class="num">pyd_014_validation_info</td><td>attempt 1, no reflection ran</td><td class="bad">no, variance</td></tr>
+            <tr><td class="num">pyd_015_root_model</td><td>attempt 1, no reflection ran</td><td class="bad">no, variance</td></tr>
+            <tr><td class="num">pyd_020_validate_default</td><td>attempt 2, after reflection</td><td class="good">yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <div class="eyebrow">The result that does clear the noise floor</div>
+        <p>
+          <code>self_correct</code> costs <strong>812 tokens per solve</strong> against the
+          baseline's <strong>805</strong>, because the loop only spends when it fails.
+          <code>best_of_n</code> costs <strong>2,347</strong>, roughly 2.9x, and scored lower.
+          Undirected resampling is the expensive strategy. That gap is far outside the noise floor,
+          so it is a claim you can actually make.
+        </p>
+      </div>
+
+      <div class="note alert">
+        <div class="eyebrow">Where the technique stops working</div>
+        <p>
+          All three of the agent's Run 3 solves landed on attempt 2, none on attempt 3. Reflection
+          reliably repairs <em>syntactic</em> v1 to v2 errors on the first correction and reliably
+          fails on <em>semantic</em> ones after. In Run 2 the oracle sat only one problem above the
+          floor, which means failures were systematic rather than stochastic: neither resampling nor
+          reflection addresses a knowledge gap.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="tradeoffs">
+    <div class="sec-head">
+      <div class="eyebrow">Design decisions</div>
+      <h2>Trade-offs, and which side was taken</h2>
+    </div>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Decision</th><th>The cost</th><th>Why it was taken anyway</th></tr></thead>
+        <tbody>
+          <tr><td>Pydantic state over TypedDict</td><td>Slight per-node overhead</td><td>Runtime validation catches state-shape bugs early, which matters more here than the cost</td></tr>
+          <tr><td>Hand-written tests for the eval set</td><td>Much slower to author, less flexible</td><td>A pass/fail signal must not depend on LLM output quality, or the metric measures self-agreement</td></tr>
+          <tr><td>Static gate blocks v1 syntax</td><td>Costs a retry on a false positive</td><td>A false negative lets the exact failure mode under study reach the sandbox undiagnosed</td></tr>
+          <tr><td>Unused imports do not block</td><td>Lets style noise through</td><td>Failing on them penalises solutions for reasons unrelated to v1-versus-v2 correctness</td></tr>
+          <tr><td>Mid-tier model on purpose</td><td>Lower absolute scores</td><td>A frontier model solves the set zero-shot, leaving nothing to measure</td></tr>
+          <tr><td>best_of_n at temperature 0.8</td><td>Higher variance per sample</td><td>At temperature 0 the N samples are near-identical and the ceiling collapses onto the floor</td></tr>
+          <tr><td>Reflection adds a call per failure</td><td>Up to 5 calls instead of 3</td><td>That is the intervention being measured; the cost is recorded rather than assumed away</td></tr>
+          <tr><td>Errors counted as failures</td><td>Understates the baseline slightly</td><td>Dropping a row shrinks the denominator and inflates every rate</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="bugs">
+    <div class="sec-head">
+      <div class="eyebrow">Chronology</div>
+      <h2>The bug log</h2>
+      <p class="prose">
+        These are in the order they were found, because each one shaped what came after. Nearly all
+        of them are bugs in the <em>instrumentation</em>, not the agent, and that is the point:
+        every one produced a failure that looked like something else.
+      </p>
+    </div>
+    <div class="stack">
+
+      <div class="bug">
+        <div class="bug-n">01</div>
+        <div class="bug-body">
+          <h4>The model tier was too weak to measure anything</h4>
+          <p>Run 1 returned 1/12, 1/12, 0/12. Read as a headline it says self-correction made things
+          worse. The oracle ceiling was also 1/12, so no method could have scored higher.</p>
+          <div class="lesson"><b>Lesson</b>An eval with no discriminating power produces numbers that
+          look like findings. The ceiling is what tells you the measurement is broken.</div>
+        </div>
+      </div>
+
+      <div class="bug">
+        <div class="bug-n">02</div>
+        <div class="bug-body">
+          <h4>A canonical test did not test what it claimed</h4>
+          <p><code>pyd_003</code>'s stored solution passed every assertion while the pipeline
+          recorded it as <code>failed_static</code>. The code used <code>class Config:</code>, which
+          Pydantic v2 still honours for backwards compatibility, so it populates
+          <code>model_config</code> exactly as <code>ConfigDict</code> would. A test asserting on
+          <code>model_config</code> passes for v1-style and v2-style code alike.</p>
+          <div class="lesson"><b>Lesson</b>When two ground-truth signals disagree about the same
+          code, one of them is wrong. Here the gate was right and the test was too weak. The fix
+          asserts <code>not hasattr(Model, "Config")</code>, and it was checked that it changed no
+          headline number before being applied.</div>
+        </div>
+      </div>
+
+      <div class="bug">
+        <div class="bug-n">03</div>
+        <div class="bug-body">
+          <h4>A retired model ID produced a fake 0/30</h4>
+          <p>Groq retired both Llama models mid-project. Two full runs recorded 90/90 errored rows
+          and the analysis printed 0/30 for all three methods, which reads exactly like catastrophic
+          model failure.</p>
+          <div class="lesson"><b>Lesson</b>Any condition that makes every measurement fail
+          identically must be checked <em>before</em> the measurement, not diagnosed after. Hence
+          <code>verify_llm_available()</code>, one call, aborts with exit 3.</div>
+        </div>
+      </div>
+
+      <div class="bug">
+        <div class="bug-n">04</div>
+        <div class="bug-body">
+          <h4>A health check that could never fail</h4>
+          <p>An edit placed an early <code>return</code> above the <code>raise</code> in
+          <code>verify_sandbox_health()</code>. The guard reported healthy no matter what. It was
+          caught only because an existing test failed, and that test was itself flaky: it used a
+          1-second budget that passed on a warm machine, so it had been green while the check was
+          broken.</p>
+          <div class="lesson"><b>Lesson</b>A guard that cannot fail is worse than no guard, because
+          it is trusted. The test now uses a zero budget, which is deterministic, plus a regression
+          test asserting the healthy path returns a real measurement.</div>
+        </div>
+      </div>
+
+      <div class="bug">
+        <div class="bug-n">05</div>
+        <div class="bug-body">
+          <h4>A too-short timeout impersonated infinite loops</h4>
+          <p>On the free hosting tier every attempt reported <code>timed_out</code>. Render allocates
+          a fraction of a CPU, and the 10s default was too short for interpreter startup plus a
+          pydantic import. Valid solutions were being recorded as timeouts.</p>
+          <div class="lesson"><b>Lesson</b>Hardware-dependent constants must be configurable and,
+          more importantly, <em>measurable</em>. <code>/api/status</code> now reports the probe
+          duration next to the configured timeout, so the value is set from data. Locally 1.7s,
+          in production 17.1s.</div>
+        </div>
+      </div>
+
+      <div class="bug">
+        <div class="bug-n">06</div>
+        <div class="bug-body">
+          <h4>A stray yield emptied every API response</h4>
+          <p>The demo returned HTTP 200 with zero bytes. An orphan <code>yield</code> left inside the
+          endpoint by a line-based edit made it a generator function, and FastAPI 0.141 streams
+          generator endpoints as <code>application/jsonl</code>. A <code>return JSONResponse(...)</code>
+          inside a generator yields nothing.</p>
+          <div class="lesson"><b>Lesson</b>The whole test suite stayed green because no test asserted
+          on a response <em>body</em>. Every signal pointed elsewhere: 200 not 5xx, worker never
+          restarted, the status endpoint fine. The instrumentation added while chasing it, a
+          <code>boot_id</code>, is what <em>refuted</em> the leading hypothesis rather than confirming
+          it.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="drill">
+    <div class="sec-head">
+      <div class="eyebrow">Preparation</div>
+      <h2>Questions you should expect</h2>
+      <p class="prose">Each answer names the evidence to point at. Open one and try answering
+      before reading.</p>
+    </div>
+
+    <details>
+      <summary>Your agent scored 30/30. Isn't that a great result?</summary>
+      <div class="answer">
+        <p>No, and the decomposition is the reason. 29 of those 30 solves landed on attempt 1, which
+        is prompt-identical to the baseline and runs no reflection at all. Of the four problems the
+        baseline missed, one was a rate limit, two were sampling variance, and exactly one was
+        repaired by the correction step.</p>
+        <p>So the loop contributed <strong>+1 out of 30</strong>, and the harness noise floor is
+        about 3 problems. It is not interpretable.</p>
+        <div class="cite">Point at: the decomposition table, and analyze.py's attempts-used breakdown.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>How do you know temperature 0 is not deterministic?</summary>
+      <div class="answer">
+        <p>Measured it. <code>single_shot</code> and the agent's attempt 1 send an identical prompt to
+        an identical model at temperature 0. They disagreed on 3 of 30 problems, roughly a 10 percent
+        per-problem rate, because provider-side batching changes floating-point reduction order.</p>
+        <p>That number is the floor beneath which this harness cannot resolve anything, which is why
+        the +1 is reported as uninterpretable rather than as a small win.</p>
+        <div class="cite">Point at: Run 3, attempt-1 count 29 versus single_shot 26.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>Why include a baseline you admit is unfair?</summary>
+      <div class="answer">
+        <p>Two reasons. It is compute-matched, so it answers whether directed correction beats
+        undirected resampling at equal budget. And it is the only thing that tells you when the eval
+        itself has stopped working.</p>
+        <p>In Run 1 the oracle sat at 1/12, the same as the floor. That immediately says no method
+        could have scored higher and the eval measured nothing. Without it, a null result is a shrug
+        instead of a diagnosis.</p>
+        <div class="cite">Point at: Run 1, and the Run 2 oracle sitting one problem above the floor.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>Prove the retry loop terminates.</summary>
+      <div class="answer">
+        <p>Three layers. Node-level guards compare <code>attempt_number >= max_attempts</code> and
+        write a terminal status; routers only read it. <code>attempt_number</code> is incremented on
+        every pass and never decremented, so the guard is guaranteed to fire.
+        <code>recursion_limit</code> is a backstop only, and deliberately not the guarantee, because
+        it raises rather than terminating cleanly.</p>
+        <p>It is tested with a stub model that <strong>never</strong> succeeds, at max_attempts 1, 2
+        and 3, on both failure paths.</p>
+        <div class="cite">Point at: tests/test_graph_termination.py, 5 tests, no API key needed.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>How do you know your eval set is not just broken?</summary>
+      <div class="answer">
+        <p>Every problem ships a hand-written reference solution, and CI asserts that it passes its
+        own tests in the real sandbox, that it passes the static gate (so the v1 detector has no
+        false positives that would reject correct code), and that no prompt leaks a v2 API name.</p>
+        <p>That check has already earned its place twice: it caught a test guard of mine that
+        rejected my own correct answer, and the partial-credit pass caught a canonical test that
+        did not test what it claimed.</p>
+        <div class="cite">Point at: tests/test_problem_set.py, and bug 02 in the log.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>You run model-written code. Is that safe?</summary>
+      <div class="answer">
+        <p>Never <code>exec()</code> or <code>eval()</code>, not even in throwaway checks. It runs
+        under pytest in a subprocess with a wall-clock timeout everywhere, plus
+        <code>RLIMIT_AS</code>, <code>RLIMIT_CPU</code> and <code>RLIMIT_NPROC</code> on POSIX.
+        Those were a design claim until CI on Linux began running the tests that exercise them, and
+        the workflow fails the build if those tests skip, since a skipped test still exits 0.</p>
+        <p>The honest gap: <strong>no network isolation</strong>. Generated code could open a socket.
+        Container isolation is the outer boundary. That guarantee is unproven because it does not
+        exist, not because it is untested.</p>
+        <div class="cite">Point at: the CI step "POSIX sandbox tests must RUN, not skip".</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>What would you do differently or next?</summary>
+      <div class="answer">
+        <p>The eval set no longer discriminates at this model tier: 26/30 zero-shot leaves four
+        problems of headroom. Only two of ten deliberately harder problems worked, and both shared
+        one property, which is the generative principle worth reusing: <strong>the obvious answer
+        looks correct, is silently accepted, and silently does nothing</strong>. One model wrote
+        <code>ConfigDict(serialize_as_any=True)</code>, which is not a real key, but
+        <code>ConfigDict</code> is a <code>TypedDict</code>, so it is accepted, stored, and has no
+        effect.</p>
+        <p>Beyond that: repeated runs for seed variance, since every number is currently a single
+        point estimate. I would not keep tuning the eval until a favourable number appears, which is
+        the exact failure this project was built to avoid.</p>
+        <div class="cite">Point at: Run 4, and the pyd_032 and pyd_037 analysis.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>What is the weakest part of this project?</summary>
+      <div class="answer">
+        <p>That the central question is unanswered. n=30 with a 3-problem noise floor cannot resolve
+        the effect being measured, and three of four calibration attempts landed outside the
+        measurable band.</p>
+        <p>What I would defend is that the project <em>knows</em> this and says so, rather than
+        reporting 30/30 and moving on. The infrastructure is finished; the science is honest but
+        inconclusive, and those are different statements.</p>
+        <div class="cite">Point at: the Limitations section, which lists the noise floor first.</div>
+      </div>
+    </details>
+  </section>
+
+  </main>
+</div>
+
+<footer class="shell">
+  <div>150 tests passing, CI green on Linux. 40 problems, 185 assertions, 4 committed runs.</div>
+  <div>Every figure in this guide is read from a committed run file. None is estimated.</div>
+</footer>
+
+</body>
+</html>
