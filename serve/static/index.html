@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Run the self-correcting Pydantic v2 agent live: generate, static-check, sandbox, reflect, retry.">
+<title>Run the Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&display=swap">
+<style>
+:root{
+  --paper:#EDF0F4;--surface:#FBFCFD;--surface-2:#F3F6F9;
+  --ink:#121820;--ink-2:#3A4553;--muted:#5B6675;
+  --rule:#D2D9E2;--rule-strong:#B6C1CE;
+  --s1:#3D6BA8;--s2:#B07D2B;--s3:#008573;
+  --warn:#A8492E;--warn-bg:#F6E7E1;--ok-bg:#E4F1EE;--band:#DDE3EB;
+  --shadow:0 1px 2px rgba(18,24,32,.06),0 8px 24px -16px rgba(18,24,32,.28);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0D1219;--surface:#161C25;--surface-2:#1C242F;
+  --ink:#E6EBF1;--ink-2:#BAC5D2;--muted:#8C99A9;
+  --rule:#28323F;--rule-strong:#3A4756;
+  --s1:#5286C7;--s2:#BC8730;--s3:#279884;
+  --warn:#D98A62;--warn-bg:#2A1D18;--ok-bg:#14261F;--band:#232C38;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -18px rgba(0,0,0,.8);
+}}
+:root[data-theme="dark"]{
+  --paper:#0D1219;--surface:#161C25;--surface-2:#1C242F;
+  --ink:#E6EBF1;--ink-2:#BAC5D2;--muted:#8C99A9;
+  --rule:#28323F;--rule-strong:#3A4756;
+  --s1:#5286C7;--s2:#BC8730;--s3:#279884;
+  --warn:#D98A62;--warn-bg:#2A1D18;--ok-bg:#14261F;--band:#232C38;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -18px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+h1{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:clamp(2rem,5vw,3rem);line-height:1.05;margin:0;letter-spacing:-.018em}
+h2{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:1.4rem;margin:0}
+p{margin:0}
+strong{font-weight:600;color:var(--ink)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+code{font-family:"IBM Plex Mono",Menlo,monospace;font-size:.88em;background:var(--surface-2);
+  border:1px solid var(--rule);border-radius:3px;padding:.08em .34em;color:var(--ink-2)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:500;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+a{color:var(--ink);text-decoration-color:var(--rule-strong);text-underline-offset:3px}
+button:focus-visible,textarea:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+
+header{border-bottom:1px solid var(--rule);background:var(--surface)}
+.head-inner{padding:44px 0 36px;display:flex;flex-direction:column;gap:16px}
+.lede{color:var(--ink-2);max-width:62ch}
+main{padding:36px 0 72px;display:flex;flex-direction:column;gap:24px}
+
+.notice{border-left:2px solid var(--s2);background:var(--surface);padding:16px 20px;
+  display:flex;flex-direction:column;gap:8px;border-radius:0 3px 3px 0}
+.notice .eyebrow{color:var(--s2)}
+.notice p{font-size:.89rem;color:var(--ink-2)}
+
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:4px;box-shadow:var(--shadow);overflow:hidden}
+.panel-head{padding:13px 18px;border-bottom:1px solid var(--rule);background:var(--surface-2);
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.panel-title{font-size:.86rem;font-weight:600}
+textarea{width:100%;min-height:130px;border:0;padding:16px;resize:vertical;display:block;
+  font-family:"IBM Plex Mono",Menlo,monospace;font-size:.85rem;line-height:1.65;
+  background:var(--surface);color:var(--ink)}
+textarea:focus{outline:none}
+.controls{padding:14px 18px;border-top:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+button{font-family:"IBM Plex Mono",monospace;font-size:.78rem;letter-spacing:.02em;
+  background:var(--s3);color:#fff;border:1px solid var(--s3);border-radius:2px;
+  padding:9px 16px;cursor:pointer;transition:opacity .12s ease}
+button:hover:not(:disabled){opacity:.88}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.ghost{background:var(--surface);color:var(--ink-2);border-color:var(--rule-strong)}
+input[type=password]{font-family:"IBM Plex Mono",monospace;font-size:.78rem;padding:8px 11px;
+  background:var(--surface);color:var(--ink);border:1px solid var(--rule-strong);border-radius:2px;min-width:230px}
+.hint{font-size:.78rem;color:var(--muted)}
+.samples{display:flex;flex-wrap:wrap;gap:7px}
+.samples button{background:var(--surface);color:var(--ink-2);border-color:var(--rule-strong);font-size:.72rem;padding:5px 10px}
+
+.status-strip{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:.71rem;border:1px solid var(--rule-strong);
+  border-radius:2px;padding:4px 9px;color:var(--ink-2);background:var(--surface-2)}
+.chip-pass{color:var(--s3);border-color:currentColor}
+.chip-fail{color:var(--warn);border-color:currentColor}
+
+#log{display:flex;flex-direction:column;gap:12px}
+.step{background:var(--surface);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.step-head{padding:11px 17px;background:var(--surface-2);border-bottom:1px solid var(--rule);
+  display:flex;flex-wrap:wrap;gap:9px;align-items:center;justify-content:space-between}
+.step-n{font-family:"IBM Plex Mono",monospace;font-size:.75rem;letter-spacing:.08em;color:var(--muted)}
+.pill{font-family:"IBM Plex Mono",monospace;font-size:.69rem;padding:3px 8px;border-radius:2px;border:1px solid currentColor}
+.pill-pass{color:var(--s3)}.pill-fail{color:var(--warn)}.pill-skip{color:var(--muted)}
+.step-body{padding:15px 17px;display:flex;flex-direction:column;gap:11px}
+.reflection{background:var(--surface-2);border-left:2px solid var(--s3);padding:12px 15px;border-radius:0 3px 3px 0}
+.reflection .eyebrow{color:var(--s3);display:block;margin-bottom:5px}
+.reflection pre{margin:0;font-family:"IBM Plex Sans",sans-serif;font-size:.85rem;color:var(--ink-2);white-space:pre-wrap;line-height:1.55}
+.issue{font-size:.84rem;color:var(--ink-2);display:flex;gap:9px}
+.issue .k{font-family:"IBM Plex Mono",monospace;font-size:.69rem;color:var(--warn);white-space:nowrap;padding-top:2px}
+details{border:1px solid var(--rule);border-radius:3px;background:var(--surface)}
+summary{padding:10px 15px;cursor:pointer;font-size:.83rem;color:var(--ink-2);font-weight:500}
+details[open] summary{border-bottom:1px solid var(--rule)}
+pre.code{margin:0;padding:14px 16px;overflow-x:auto;font-family:"IBM Plex Mono",Menlo,monospace;
+  font-size:.78rem;line-height:1.6;color:var(--ink-2);white-space:pre}
+.final{padding:15px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.final.pass{background:var(--ok-bg)}
+.final.fail{background:var(--warn-bg)}
+.vstate{font-family:"IBM Plex Mono",monospace;font-size:.82rem;font-weight:600}
+.vstate.pass{color:var(--s3)}.vstate.fail{color:var(--warn)}
+.spinner{display:inline-block;width:11px;height:11px;border:2px solid var(--rule-strong);
+  border-top-color:var(--s3);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-1px}
+@keyframes spin{to{transform:rotate(360deg)}}
+footer{padding:0 0 60px;color:var(--muted);font-size:.83rem}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}*{transition:none!important}}
+@media (max-width:620px){input[type=password]{min-width:0;width:100%}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap head-inner">
+    <div class="eyebrow">LangGraph &middot; Pydantic v2 &middot; live</div>
+    <h1>Run the agent</h1>
+    <p class="lede">
+      Describe a Pydantic v2 task. The agent generates code, runs a deterministic
+      v1 anti-pattern gate, executes tests in a resource-limited subprocess, and
+      on failure reflects and retries &mdash; up to three attempts. Every step below is
+      real output.
+    </p>
+    <div class="status-strip" id="statusStrip"><span class="chip">checking status&hellip;</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="notice">
+    <div class="eyebrow">A pass here is not a benchmark result</div>
+    <p>
+      Your prompt has no hand-written tests, so the agent writes its own &mdash; meaning the
+      model is partly grading itself. That is useful for watching the loop work, and it
+      is <strong>not</strong> evidence of correctness. Only the 40-problem eval set, which uses
+      hand-written tests exclusively, backs any number reported in this project.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Task for the agent</span>
+      <span class="samples">
+        <button type="button" class="ghost" data-s="validator">Field validator</button>
+        <button type="button" class="ghost" data-s="serialise">Serialisation</button>
+        <button type="button" class="ghost" data-s="config">Immutable model</button>
+      </span>
+    </div>
+    <textarea id="prompt" spellcheck="false" maxlength="1200" aria-label="Task description"></textarea>
+    <div class="controls">
+      <button type="button" id="runBtn">Run the agent</button>
+      <input type="password" id="key" placeholder="Groq key (optional)" autocomplete="off" spellcheck="false" aria-label="Your Groq API key, optional">
+      <span class="hint" id="keyHint">Optional. Used for this request only, never stored.</span>
+    </div>
+  </div>
+
+  <div id="log"></div>
+
+</main>
+
+<footer class="wrap">
+  <div><a href="https://github.com/Avan1sh/Code-Generation-Agent">Source</a> &middot; <a href="https://avan1sh.github.io/Code-Generation-Agent/">Results and methodology</a></div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var SAMPLES = {
+    validator: "Write a Pydantic v2 model `User` with fields `email: str` and `age: int`.\nStrip and lowercase the email before storing it, and reject an age below 13\nwith a ValueError reading 'too young'.",
+    serialise: "Write a Pydantic v2 model `Invoice` with fields `number: str`, `total_cents: int`,\nand `internal_note: str` defaulting to empty. Add a function `to_payload(invoice)`\nthat returns the model as a dict with internal_note excluded.",
+    config: "Write a Pydantic v2 model `Settings` with fields `host: str` and `port: int`.\nIt must be immutable after construction and must reject unknown fields."
+  };
+
+  var promptEl = document.getElementById("prompt");
+  var keyEl    = document.getElementById("key");
+  var runBtn   = document.getElementById("runBtn");
+  var logEl    = document.getElementById("log");
+  var stripEl  = document.getElementById("statusStrip");
+  var hintEl   = document.getElementById("keyHint");
+
+  promptEl.value = SAMPLES.validator;
+  Array.prototype.forEach.call(document.querySelectorAll("[data-s]"), function(b){
+    b.addEventListener("click", function(){ promptEl.value = SAMPLES[b.getAttribute("data-s")]; promptEl.focus(); });
+  });
+
+  function esc(t){ var d=document.createElement("div"); d.textContent = t==null?"":t; return d.innerHTML; }
+  function chip(text, cls){ return '<span class="chip'+(cls?" "+cls:"")+'">'+esc(text)+"</span>"; }
+
+  function loadStatus(){
+    fetch("api/status").then(function(r){ return r.json(); }).then(function(s){
+      var html = "";
+      html += chip(s.model);
+      html += chip("max " + s.max_attempts + " attempts");
+      html += chip(s.posix_resource_limits_active ? "POSIX sandbox limits active" : "wall-clock timeout only",
+                   s.posix_resource_limits_active ? "chip-pass" : "");
+      html += chip("shared budget " + s.shared_budget_remaining + "/" + s.shared_budget_total,
+                   s.byok_required ? "chip-fail" : "");
+      stripEl.innerHTML = html;
+      if (s.byok_required){
+        hintEl.textContent = "Shared budget spent for today — a key is required to run.";
+        hintEl.style.color = "var(--warn)";
+      }
+    }).catch(function(){ stripEl.innerHTML = chip("status unavailable", "chip-fail"); });
+  }
+  loadStatus();
+
+  function renderAttempt(a){
+    var gate, gateCls;
+    if (a.static_passed === true){ gate="static: passed"; gateCls="pill-pass"; }
+    else if (a.static_passed === false){ gate="static: failed"; gateCls="pill-fail"; }
+    else { gate="static: n/a"; gateCls="pill-skip"; }
+
+    var ex, exCls;
+    if (a.execution_passed === true){ ex="tests: passed"; exCls="pill-pass"; }
+    else if (a.execution_passed === false){ ex = a.timed_out ? "tests: timed out" : "tests: failed"; exCls="pill-fail"; }
+    else { ex="never reached the sandbox"; exCls="pill-skip"; }
+
+    var h = '<div class="step"><div class="step-head"><span class="step-n">ATTEMPT '+a.attempt_number+'</span><span>';
+    h += '<span class="pill '+gateCls+'">'+gate+'</span> <span class="pill '+exCls+'">'+ex+'</span></span></div>';
+    h += '<div class="step-body">';
+    if (a.reflection){
+      h += '<div class="reflection"><span class="eyebrow">Diagnosis that guided this attempt</span><pre>'+esc(a.reflection)+"</pre></div>";
+    }
+    (a.static_issues||[]).forEach(function(i){
+      h += '<div class="issue"><span class="k">'+esc(i.kind)+"</span><span>"+esc(i.message)+
+           (i.line?' <span style="color:var(--muted)">(line '+i.line+")</span>":"")+"</span></div>";
+    });
+    if (a.code){
+      h += '<details><summary>Code produced</summary><pre class="code">'+esc(a.code)+"</pre></details>";
+    }
+    if (a.stdout_tail && a.execution_passed === false){
+      h += '<details><summary>pytest output</summary><pre class="code">'+esc(a.stdout_tail)+"</pre></details>";
+    }
+    h += "</div></div>";
+    return h;
+  }
+
+  function run(){
+    var prompt = promptEl.value.trim();
+    if (prompt.length < 8){ logEl.innerHTML = '<div class="notice"><p>Describe a task first.</p></div>'; return; }
+
+    runBtn.disabled = true;
+    runBtn.innerHTML = '<span class="spinner"></span> running';
+    logEl.innerHTML = '<div class="notice"><p><span class="spinner"></span> Generating, checking, and running tests in the sandbox. Up to three attempts — this can take 30–90 seconds.</p></div>';
+
+    var body = { prompt: prompt };
+    var k = keyEl.value.trim();
+    if (k) body.api_key = k;
+
+    fetch("api/solve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function(r){
+      return r.json().then(function(j){ return { ok: r.ok, data: j }; });
+    }).then(function(res){
+      if (!res.ok){
+        logEl.innerHTML = '<div class="notice" style="border-left-color:var(--warn)">' +
+          '<div class="eyebrow" style="color:var(--warn)">'+esc(res.data.error||"error")+"</div>" +
+          "<p>"+esc(res.data.message||"The run failed.")+"</p></div>";
+        loadStatus();
+        return;
+      }
+      var d = res.data, h = "";
+      h += '<div class="status-strip" style="margin-bottom:4px">';
+      h += chip(d.attempts_used + "/" + d.max_attempts + " attempts");
+      h += chip(d.duration_sec + "s");
+      h += chip(d.usage.calls + " LLM calls");
+      h += chip(d.usage.total_tokens.toLocaleString() + " tokens");
+      h += chip(d.key_source === "visitor" ? "your key" : "shared key");
+      h += "</div>";
+
+      (d.attempts||[]).forEach(function(a){ h += renderAttempt(a); });
+
+      h += '<div class="panel"><div class="final '+(d.passed?"pass":"fail")+'">';
+      h += '<span class="vstate '+(d.passed?"pass":"fail")+'">'+esc(d.status.toUpperCase())+"</span>";
+      h += '<span style="font-size:.86rem;color:var(--ink-2)">' +
+           (d.passed
+             ? "Passed the tests the model wrote for itself — not a benchmark result."
+             : "The loop hit its attempt ceiling and stopped. Termination is bounded by design, not by the model cooperating.") +
+           "</span></div>";
+      if (d.code){ h += '<pre class="code">'+esc(d.code)+"</pre>"; }
+      h += "</div>";
+      if (d.test_code){
+        h += '<details><summary>Tests the model wrote to judge itself</summary><pre class="code">'+esc(d.test_code)+"</pre></details>";
+      }
+      logEl.innerHTML = h;
+      loadStatus();
+    }).catch(function(){
+      logEl.innerHTML = '<div class="notice" style="border-left-color:var(--warn)"><p>Could not reach the server.</p></div>';
+    }).finally(function(){
+      runBtn.disabled = false;
+      runBtn.textContent = "Run the agent";
+    });
+  }
+
+  runBtn.addEventListener("click", run);
+})();
+</script>
+</body>
+</html>

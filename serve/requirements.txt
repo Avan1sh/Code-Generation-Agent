@@ -1,0 +1,12 @@
+# Agent core
+langgraph>=0.2.60
+langchain-core>=0.3.29
+langchain-groq>=0.2
+pydantic>=2.9
+pyflakes>=3.2
+pytest>=8.3
+python-dotenv>=1.0
+
+# Server
+fastapi>=0.115
+uvicorn[standard]>=0.32
