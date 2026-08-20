@@ -26,7 +26,7 @@ PROBLEMS = load_problems()
 
 
 def test_problem_set_is_non_empty():
-    assert len(PROBLEMS) == 30
+    assert len(PROBLEMS) == 40
 
 
 @pytest.mark.parametrize("problem", PROBLEMS, ids=lambda p: p.id)
@@ -88,6 +88,19 @@ def test_prompt_does_not_leak_the_answer(problem):
         "min_length",
         "max_length",
         "exclude_none",
+        "SerializeAsAny",
+        "PrivateAttr",
+        "model_post_init",
+        "model_fields_set",
+        "exclude_unset",
+        "BeforeValidator",
+        "AfterValidator",
+        "PydanticCustomError",
+        "alias_generator",
+        "model_serializer",
+        "__pydantic_extra__",
+        "GenericModel",
+        "to_camel",
     ]
     found = [name for name in leaked if name in problem.prompt]
     assert not found, f"{problem.id} prompt leaks v2 API names: {found}"

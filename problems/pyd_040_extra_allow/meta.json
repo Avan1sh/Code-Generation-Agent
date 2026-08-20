@@ -1,0 +1,6 @@
+{
+  "id": "pyd_040_extra_allow",
+  "category": "extra_allow",
+  "difficulty": "hard",
+  "v1_trap": "v1 put unknown keys on the instance; v2 collects them in a dedicated mapping"
+}

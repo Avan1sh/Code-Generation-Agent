@@ -1,0 +1,6 @@
+{
+  "id": "pyd_038_alias_generator",
+  "category": "alias_generator",
+  "difficulty": "hard",
+  "v1_trap": "v1 alias_generator lived in class Config and had no built-in camel helper"
+}

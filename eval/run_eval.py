@@ -95,6 +95,12 @@ def main() -> int:
         choices=["single_shot", "best_of_n", "self_correct"],
     )
     parser.add_argument("--limit", type=int, default=None, help="Run only the first N problems.")
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        default=None,
+        help="Run only problems whose id contains any of these substrings.",
+    )
     parser.add_argument("--out", type=str, default=None)
     args = parser.parse_args()
 
@@ -123,6 +129,8 @@ def main() -> int:
 
 
     problems = load_problems()
+    if args.only:
+        problems = [p for p in problems if any(frag in p.id for frag in args.only)]
     if args.limit is not None:
         problems = problems[: args.limit]
     if not problems:
@@ -142,6 +150,9 @@ def main() -> int:
         "best_of_n_n": args.max_attempts,
         "methods": args.methods,
         "n_problems": len(problems),
+        # Recorded so a filtered run cannot be read as a full-set result.
+        "problem_ids": [p.id for p in problems],
+        "subset_filter": args.only,
         "python": platform.python_version(),
         "platform": platform.platform(),
         # Recorded because the sandbox enforces different guarantees per OS

@@ -1,0 +1,6 @@
+{
+  "id": "pyd_031_generic_model",
+  "category": "generic_model",
+  "difficulty": "hard",
+  "v1_trap": "v1 required a GenericModel base class; v2 uses plain Generic[T]"
+}

@@ -1,0 +1,6 @@
+{
+  "id": "pyd_039_wrap_serializer",
+  "category": "wrap_serializer",
+  "difficulty": "hard",
+  "v1_trap": "v1 had no serializer hooks; wrapping the whole model's output is v2-only"
+}

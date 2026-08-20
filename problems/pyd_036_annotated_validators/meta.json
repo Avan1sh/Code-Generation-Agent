@@ -1,0 +1,6 @@
+{
+  "id": "pyd_036_annotated_validators",
+  "category": "annotated_validators",
+  "difficulty": "hard",
+  "v1_trap": "v1 only had decorator validators; v2 allows reusable validators attached to a type"
+}

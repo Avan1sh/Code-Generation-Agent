@@ -1,0 +1,6 @@
+{
+  "id": "pyd_032_serialize_as_any",
+  "category": "serialize_as_any",
+  "difficulty": "hard",
+  "v1_trap": "v1 serialised subclass fields by duck-typing; v2 serialises to the declared type unless opted out"
+}

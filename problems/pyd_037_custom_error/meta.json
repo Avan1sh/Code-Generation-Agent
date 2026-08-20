@@ -1,0 +1,6 @@
+{
+  "id": "pyd_037_custom_error",
+  "category": "custom_error",
+  "difficulty": "hard",
+  "v1_trap": "v1 raised bare ValueError; v2 supports structured error types with a machine-readable code"
+}

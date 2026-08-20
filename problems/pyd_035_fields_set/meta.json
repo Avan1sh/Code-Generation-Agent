@@ -1,0 +1,6 @@
+{
+  "id": "pyd_035_fields_set",
+  "category": "fields_set",
+  "difficulty": "hard",
+  "v1_trap": "v1 exposed __fields_set__; v2 renames it and it is the only way to tell explicit None from a default"
+}

@@ -53,8 +53,10 @@ silently ignored. That gives a genuine, reproducible, root-causable error class 
 rather than the diffuse "sometimes the model is just wrong" failures of a generic
 benchmark.
 
-The eval set probes 30 specific v1 habits that break in v2 — 7 easy, 12 medium,
-11 hard, 139 assertions total. Each problem ships a hand-written `reference.py`
+The eval set probes 40 specific v1 habits and v2 semantics — 7 easy, 12 medium,
+21 hard, 185 assertions total. Problems 031–040 were added after Run 3 showed the
+set was ceiling-limited; see [Run 4](#run-4--hard-problem-calibration-check-openaigpt-oss-120b-n11)
+for how well that worked. Each problem ships a hand-written `reference.py`
 proving it is solvable (see [The eval set validates itself](#the-eval-set-validates-itself)).
 
 | # | Problem | v1 trap being probed |
@@ -356,6 +358,71 @@ when it fails. `best_of_n` costs **2.9×** per solve, since it always draws all
 three samples whether or not the first worked. That is the clearest cost result
 here: **undirected resampling is the expensive strategy, and it scored lower
 than the agent.**
+
+### Run 4 — hard-problem calibration check, `openai/gpt-oss-120b`, n=11
+
+`results/run_20260820T061750Z.jsonl` (problems 030–040 only, via `--only`)
+
+Ten new problems were written specifically to defeat this model, after Run 3
+showed the eval was ceiling-limited. **The attempt largely failed, and that is
+the result:**
+
+| Method | Solved | Tokens / solve |
+|--------|--------|----------------|
+| `single_shot` | **9/11** (81.8%) | 1,188 |
+| `best_of_n` (oracle) | **10/11** (90.9%) | 3,180 |
+| `self_correct` | **9/11** (81.8%) | 2,819 |
+
+Baseline moved from 86.7% (Run 3) to 81.8% — **barely harder**. The model
+comfortably handles wrap validators, `model_post_init` with private attributes,
+`model_fields_set`/`exclude_unset`, plain `Generic[T]` models, `alias_generator`,
+wrap serializers, and `extra="allow"` with `__pydantic_extra__`. The loop again
+netted +0.
+
+**This is the third calibration miss**: too weak (Run 1), too strong (Run 3),
+still too easy (Run 4). Recorded rather than quietly re-tuned, because the
+pattern is the finding — writing problems this model fails in this domain is
+genuinely difficult.
+
+#### The two that did work, and why
+
+Only `pyd_032` and `pyd_037` defeated the baseline; `pyd_037` defeated **every
+method including the oracle**. Both share one property, and it is the generative
+principle worth reusing:
+
+> **The obvious answer looks correct, is silently accepted, and silently does
+> nothing.**
+
+- `pyd_032_serialize_as_any` — the model wrote
+  `model_config = ConfigDict(serialize_as_any=True)`. `serialize_as_any` is *not*
+  a `ConfigDict` key, but `ConfigDict` is a `TypedDict`, so the key is accepted
+  at runtime, stored in `model_config`, and has **no effect**. No error, no
+  warning; the subclass field is just missing from the output. The working
+  answers are `SerializeAsAny[Animal]` on the field or the runtime
+  `model_dump(serialize_as_any=True)` flag.
+- `pyd_037_custom_error` — the model reached for `PydanticErrorMixin` from
+  `pydantic.errors`, a real but internal API, rather than `PydanticCustomError`
+  from `pydantic_core`. Plausible, importable, wrong.
+
+Problems that merely ask *"which v2 name replaced this v1 name?"* are a lookup
+this model performs reliably. Problems where a plausible construct is accepted
+and silently misbehaves are the ones with discriminating power.
+
+#### Honest status of the eval set
+
+**Pydantic v2 is close to exhausted as a discriminating domain at this model
+tier.** Forty problems now yield roughly 4–6 failures, which is not enough
+headroom to measure a correction loop against. Restoring measurement needs one
+of:
+
+1. more problems built on the silent-failure principle above (the only approach
+   shown to work here, at roughly a 2-in-11 hit rate);
+2. a weaker model — but Groq has retired both Llama tiers, so the previously
+   measurable band is no longer reachable;
+3. a different, harder domain.
+
+None of these is a result about self-correction. Stating that plainly is more
+useful than continuing to tune until a favourable number appears.
 
 ### Runs 1 and 2 — Llama models, n=12 (historical, NOT reproducible)
 

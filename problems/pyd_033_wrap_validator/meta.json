@@ -1,0 +1,6 @@
+{
+  "id": "pyd_033_wrap_validator",
+  "category": "wrap_validator",
+  "difficulty": "hard",
+  "v1_trap": "v1 had no wrap validators; recovering from a failed inner validation is v2-only"
+}

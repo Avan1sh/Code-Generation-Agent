@@ -1,0 +1,6 @@
+{
+  "id": "pyd_034_model_post_init",
+  "category": "model_post_init",
+  "difficulty": "hard",
+  "v1_trap": "v1 overrode __init__ or used a root validator; v2 provides a post-init hook plus private attrs"
+}
